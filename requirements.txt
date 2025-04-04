@@ -1,0 +1,12 @@
+numpy
+pandas
+mne
+mne-nirs
+matplotlib
+snirf
+nilearn
+pylsl
+scipy
+h5py
+pywavelets
+pyedflib
