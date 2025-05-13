@@ -9,6 +9,97 @@ from mne import Annotations
 from scipy.signal import butter, sosfreqz, sosfiltfilt, iirnotch, filtfilt, welch
 from scipy.stats import pearsonr
 
+
+
+def TDDR(signal, sample_rate):
+    # This function is the reference implementation for the TDDR algorithm for
+    #   motion correction of fNIRS data, as described in:
+    #
+    #   Fishburn F.A., Ludlum R.S., Vaidya C.J., & Medvedev A.V. (2019).
+    #   Temporal Derivative Distribution Repair (TDDR): A motion correction
+    #   method for fNIRS. NeuroImage, 184, 171-179.
+    #   https://doi.org/10.1016/j.neuroimage.2018.09.025
+    #
+    # Usage:
+    #   signals_corrected = TDDR( signals , sample_rate );
+    #
+    # Inputs:
+    #   signals: A [sample x channel] matrix of uncorrected optical density data
+    #   sample_rate: A scalar reflecting the rate of acquisition in Hz
+    #
+    # Outputs:
+    #   signals_corrected: A [sample x channel] matrix of corrected optical density data
+    signal = np.array(signal)
+    if len(signal.shape) != 1:
+        for ch in range(signal.shape[1]):
+            signal[:, ch] = TDDR(signal[:, ch], sample_rate)
+        return signal
+
+    # Preprocess: Separate high and low frequencies
+    filter_cutoff = .5
+    filter_order = 3
+    Fc = filter_cutoff * 2/sample_rate
+    signal_mean = np.mean(signal)
+    signal -= signal_mean
+    if Fc < 1:
+        fb, fa = butter(filter_order, Fc)
+        signal_low = filtfilt(fb, fa, signal, padlen=0)
+    else:
+        signal_low = signal
+
+    signal_high = signal - signal_low
+
+    # Initialize
+    tune = 4.685
+    D = np.sqrt(np.finfo(signal.dtype).eps)
+    mu = np.inf
+    iter = 0
+
+    # Step 1. Compute temporal derivative of the signal
+    deriv = np.diff(signal_low)
+
+    # Step 2. Initialize observation weights
+    w = np.ones(deriv.shape)
+
+    # Step 3. Iterative estimation of robust weights
+    while iter < 50:
+
+        iter = iter + 1
+        mu0 = mu
+
+        # Step 3a. Estimate weighted mean
+        mu = np.sum(w * deriv) / np.sum(w)
+
+        # Step 3b. Calculate absolute residuals of estimate
+        dev = np.abs(deriv - mu)
+
+        # Step 3c. Robust estimate of standard deviation of the residuals
+        sigma = 1.4826 * np.median(dev)
+
+        # Step 3d. Scale deviations by standard deviation and tuning parameter
+        r = dev / (sigma * tune)
+
+        # Step 3e. Calculate new weights according to Tukey's biweight function
+        w = ((1 - r**2) * (r < 1)) ** 2
+
+        # Step 3f. Terminate if new estimate is within machine-precision of old estimate
+        if abs(mu - mu0) < D * max(abs(mu), abs(mu0)):
+            break
+
+    # Step 4. Apply robust weights to centered derivative
+    new_deriv = w * (deriv - mu)
+
+    # Step 5. Integrate corrected derivative
+    signal_low_corrected = np.cumsum(np.insert(new_deriv, 0, 0.0))
+
+    # Postprocess: Center the corrected signal
+    signal_low_corrected = signal_low_corrected - np.mean(signal_low_corrected)
+
+    # Postprocess: Merge back with uncorrected high frequency component
+    signal_corrected = signal_low_corrected + signal_high + signal_mean
+
+    return signal_corrected
+
 def butter_bandpass(lowcut, highcut, fs, freqs=512, order=3):
     nyq = 0.5 * fs
     low = lowcut / nyq
@@ -174,7 +265,7 @@ class fNIRS():
         hbr_channels = np.array(hbr_channels)
         
         return hbo_channels, hbo_names, hbr_channels, hbr_names
-      
+    
     def write_snirf(self, filepath):
         write_raw_snirf(self.snirf, filepath)
         print(f"Wrote SNIRF to {filepath}")
@@ -296,10 +387,11 @@ class fNIRS():
         start_frames = int(first_frame - (cut_from_first_feature * self.sampling_frequency))
         end_frames = int(last_frame + (cut_from_last_feature * self.sampling_frequency))
         
+        print(f"Trimming From Features {self.channel_data.shape} : [ {start_seconds} : {end_seconds} ] / [ {start_frames} : {end_frames} ]")
         assert(start_frames >= 0)
-        assert(end_frames < self.channel_data.shape[1])
-        print(f"Trimming From Features : [ {start_seconds} : {end_seconds} ] / [ {start_frames} : {end_frames} ]")
-        
+        if end_frames < self.channel_data.shape[1]:
+            end_frames = self.channel_data.shape[1]-1
+            
         self.channel_data = self.channel_data[:, start_frames:end_frames]
         
         valid_indices = [i for i, onset in enumerate(self.feature_onsets) if start_seconds <= onset < end_seconds]
@@ -308,7 +400,7 @@ class fNIRS():
         self.feature_durations = np.array([self.feature_durations[i] for i in valid_indices])
         # OVERWRITE THE .SNIRF
         self.update_snirf_object()
-    
+
     def bandpass_channels(self, low_freq=0.01, high_freq=0.1, order=5):
         """
         Applies a digital bandpass filter to all channels. Returns filtered snirf object. 
@@ -325,16 +417,22 @@ class fNIRS():
         for i, channel in enumerate(self.channel_data):  # Iterate over each channel
             self.channel_data[i] = butter_bandpass_filter(channel, low_freq, high_freq, self.sampling_frequency, order)
         
-    def preprocess(self, optical_density=True, hemoglobin_concentration=True, temporal_filtering=True, normalization=True):
+    def preprocess(self, optical_density=True, hemoglobin_concentration=True, temporal_filtering=True, normalization=True, detrending=True):
         if optical_density:
             self.to_optical_density(use_inital_value=False)
 
         if hemoglobin_concentration:
             self.to_hemoglobin_concentration()
     
+        if detrending:
+            # Apply temporal derivative distribution repair
+            for i, channel in enumerate(self.channel_data):
+                self.channel_data[i] = TDDR(channel, self.sampling_frequency)
+            self.snirf._data = self.channel_data
+            
         if temporal_filtering:
-            lowcut = 0.02
-            highcut = 0.07
+            lowcut = 0.01
+            highcut = 0.1
             order = 15
             self.bandpass_channels(lowcut, highcut, order)
         
@@ -348,7 +446,9 @@ class fNIRS():
 
             self.channel_data = normalized_channels
             self.snirf._data = normalized_channels
-                
+            
+            
+             
     def plot_channels(self,):
         
         hbo_data, hbo_names, hbr_data, hbr_names = self.split()
