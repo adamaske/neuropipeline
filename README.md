@@ -21,9 +21,9 @@ nplv.open(fnirs)
 
 snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to overwrite any data you want to keep. 
 ```
+## Analysis Example: Heel Stimulation
 
-## Example
-These examples show single trials from a subject during a heel-stimulation experiment. The time series, spectrogram and frequency (PSD, FFT) are plotted for each case. The red dashed lines represent markers in the data, specifically when each block starts (rest, task) as well as metadata markers describing the robot's movement and actions. The stimuli was delivered as 6 indentations and subsequent shears of the heel edge by a robot actuator. In the supination case (left), we see a clear correlation with increased HbO in the first two stimuli periods. Looking at the spectrogram (y: 0.00-0.10 Hz), the neurogenic band centered at 0.025 Hz shows activity throughout, with notable spikes coinciding with the HbO increases at stimuli onset. This is a strong indication of captured neurogenic activity in the sensory cortex resulting from mechanical stimulation of the lateral heel edge. The pronation case (right) does not exhibit the same pattern; neurogenic activity remains consistently low across the trial spectrogram, and while the time series shows some local peaks during task durations,  
+These plots display data from a single subject during a robotic heel-stimulation experiment, showing the Time Series, Spectrogram, and Frequency (PSD/FFT) for two different scenarios. The vertical red dashed lines indicate "markers," which show exactly when a task started or when the robot moved. In this experiment, a robot stimulated the heel 6 times. In the Supination case (left), we see a clear success: oxygenated hemoglobin (HbO) increases right when the stimuli begin. This is supported by the spectrogram, where we see "spikes" of activity at 0.025 Hz (the neurogenic band) that align perfectly with the robot's movements. This confirms the pipeline has successfully captured brain activity in the sensory cortex. In contrast, the Pronation case (right) shows consistently low activity in the spectrogram, and while the time series has some small peaks, they do not show the same clear correlation with the stimulation.
 
 <table>
   <tr>
