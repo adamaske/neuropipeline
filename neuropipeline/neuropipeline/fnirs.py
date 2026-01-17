@@ -6,7 +6,7 @@ from mne_nirs.io import write_raw_snirf
 from snirf import validateSnirf
 from mne.preprocessing.nirs import optical_density, beer_lambert_law,  temporal_derivative_distribution_repair
 from mne import Annotations
-from scipy.signal import butter, sosfreqz, sosfiltfilt, iirnotch, filtfilt, welch
+from scipy.signal import butter, sosfreqz, sosfiltfilt, iirnotch, filtfilt, welch, detrend
 from scipy.stats import pearsonr
 
 
@@ -417,25 +417,69 @@ class fNIRS():
         for i, channel in enumerate(self.channel_data):  # Iterate over each channel
             self.channel_data[i] = butter_bandpass_filter(channel, low_freq, high_freq, self.sampling_frequency, order)
         
-    def preprocess(self, optical_density=True, hemoglobin_concentration=True, temporal_filtering=True, normalization=True, detrending=True):
+# Plan to replace this
+# class Preprocessor : def set_bandpass_settings(self, l_freq, h_freq, n):
+# preprocessor __init__(, optical_density=True, hemoglobin_concentration=True, motion_correction=True, temporal_filtering=True, detrending=True, normalization=True )
+# and so on        
+# class Preprocessor:
+#     def __init__(self, optical_density=True, hemoglobin_concentration=True, 
+#                  motion_correction=True, 
+#                  temporal_filtering=True, detrending=True, normalization=True)  :
+        
+        
+#         self.optical_density = optical_density
+#         self.hemoglobin_concentration = hemoglobin_concentration
+#         self.motion_correction = motion_correction
+#         self.temporal_filtering = temporal_filtering
+#         self.detrending = detrending
+#         self.normalization = normalization
+        
+#     def get_settings(self):
+#         return {
+#             "optical_density" : self.optical_density,
+#             "hemoglobin_concentration" : self.hemoglobin_concentration,
+#             "motion_correction" : self.motion_correction,
+#             "temporal_filtering" : self.temporal_filtering,
+#             "detrending" : self.detrending,
+#             "normalization" : self.normalization
+#         }
+        
+#     def preprocess(self, fnirs:fNIRS):
+#         fnirs.preprocess(
+#             optical_density=self.optical_density,
+#             hemoglobin_concentration=self.hemoglobin_concentration,
+#             motion_correction=self.motion_correction,
+#             temporal_filtering=self.temporal_filtering,
+#             detrending=self.detrending,
+#             normalization=self.normalization
+#         )
+        
+              
+    def preprocess(self, optical_density=True, hemoglobin_concentration=True, motion_correction=True, temporal_filtering=True, detrending=True, normalization=True):
         if optical_density:
             self.to_optical_density(use_inital_value=False)
 
         if hemoglobin_concentration:
             self.to_hemoglobin_concentration()
-    
-        if detrending:
-            # Apply temporal derivative distribution repair
+
+        if motion_correction:
+            # Apply TDDR motion correction
             for i, channel in enumerate(self.channel_data):
                 self.channel_data[i] = TDDR(channel, self.sampling_frequency)
             self.snirf._data = self.channel_data
             
         if temporal_filtering:
             lowcut = 0.01
-            highcut = 0.5
+            highcut = 0.1
             order = 15
             self.bandpass_channels(lowcut, highcut, order)
-        
+            
+        if detrending:
+            # Apply linear detrending to remove slow drifts
+            for i, channel in enumerate(self.channel_data):
+                self.channel_data[i] = detrend(channel, type='linear')
+            self.snirf._data = self.channel_data
+            
         if normalization:
             mean_vals = np.mean(self.channel_data, axis=1, keepdims=True)  # Compute mean per channel
             std_vals = np.std(self.channel_data, axis=1, keepdims=True)  # Compute standard deviation per channel
@@ -447,8 +491,6 @@ class fNIRS():
             self.channel_data = normalized_channels
             self.snirf._data = normalized_channels
             
-            
-             
     def plot_channels(self,):
         
         hbo_data, hbo_names, hbr_data, hbr_names = self.split()

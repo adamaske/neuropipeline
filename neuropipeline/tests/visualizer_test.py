@@ -5,14 +5,15 @@ import neuropipeline.visualizer as nplv
 
 if __name__ == "__main__":
 
-    fnirs = fNIRS("C:\\nirs\\Datasets\\ms_data\\Subject03\\sub03_trial03.snirf")
-    fnirs.preprocess(
-        optical_density=True,
-        hemoglobin_concentration=True,
-        temporal_filtering=True,
-        normalization=False,
-        detrending=True
-    )
+    fnirs = fNIRS("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003.snirf")
+    fnirs.preprocess(optical_density=True, 
+                     hemoglobin_concentration=True, 
+                     motion_correction=True,
+                     temporal_filtering=True,
+                     detrending=True, 
+                     normalization=False 
+                     )
     
+    #fnirs.write_snirf("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003_processed.snirf")
     nplv.open(fnirs)
     

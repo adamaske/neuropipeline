@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 build_and_upload.bat
 create_folders.bat
+upload_development_package.bat
+
+# Local batch scripts (may contain API keys/tokens)
+*.bat
