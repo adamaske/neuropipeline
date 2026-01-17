@@ -35,27 +35,6 @@ These plots display data from a single subject during a robotic heel-stimulation
     <td align="center"><em>Pronation</em></td>
   </tr>
 </table>
-
-## Features
-
-* **Unified Interface:** A consistent API for both EEG and fNIRS data processing.
-* **Preprocessing:**
-    * Artifact removal (e.g., ICA, filtering).
-    * Data cleaning and interpolation.
-    * Channel/probe management.
-* **Analysis:**
-    * Frequency domain analysis (e.g., power spectral density).
-    * Time domain analysis (e.g., event-related potentials/responses).
-    * Statistical analysis.
-    * fNIRS specific analysis (HbO, HbR, and HbT calculations)
-* **Visualization:**
-    * Interactive plots for EEG and fNIRS data.
-    * Topographic maps.
-    * Time-series plots.
-    * fNIRS channel location visualization.
-* **Extensible Design:** Easily add custom processing and analysis modules.
-* **Well-Documented:** Comprehensive documentation with examples and tutorials.
-
 ## Installation
 
 ```bash
