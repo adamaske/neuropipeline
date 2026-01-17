@@ -5,16 +5,34 @@ Interactive GUI for exploring fNIRS (SNIRF) data channel-by-channel.
 ## Usage
 
 ```python
-import neuropipeline.visualizer as visualizer
-
-# From file path
-visualizer.open("path/to/file.snirf")
-
-# From existing fNIRS object
 from neuropipeline.fnirs import fNIRS
-data = fNIRS("path/to/file.snirf")
-visualizer.open(data)
+import neuropipeline.visualizer as nplv
+
+fnirs = fNIRS("path/to/your_file.snirf")
+fnirs.preprocess(
+    optical_density=True,
+    hemoglobin_concentration=True,
+    temporal_filtering=True,
+    normalization=False,
+    detrending=True
+)
+
+nplv.open(fnirs)
 ```
+
+## Example
+These examples show single trials from a subject in my master thesis experiments. The time series, spectrogram and frequency (PSD, FFT) are plotted for each case. The red dashed lines represent markers in the data, specifically when each block starts (rest, task) as well as metadata markers describing the robot's movement and actions. The stimuli was delivered as 6 indentations and subsequent shears of the heel edge by a robot actuator. In the supination case (left), we see a clear correlation with increased HbO in the first two stimuli periods. Looking at the spectrogram (y: 0.00-0.10 Hz), the neurogenic band centered at 0.025 Hz shows activity throughout, with notable spikes coinciding with the HbO increases at stimuli onset. This is a strong indication of captured neurogenic activity in the sensory cortex resulting from mechanical stimulation of the lateral heel edge. The pronation case (right) does not exhibit the same pattern; neurogenic activity remains consistently low across the trial spectrogram, and while the time series shows some local peaks during task durations,  
+
+<table>
+  <tr>
+    <td><img src="visualizer_example.jpg" alt="Supination case"/></td>
+    <td><img src="visualizer_example_pronation.jpg" alt="Pronation case"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Supination</em></td>
+    <td align="center"><em>Pronation</em></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -46,3 +64,5 @@ visualizer.open(data)
 ## Requirements
 
 Uses tkinter (built-in) and matplotlib for rendering. No additional dependencies beyond the standard neuropipeline requirements.
+
+

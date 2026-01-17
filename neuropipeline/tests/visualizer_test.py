@@ -2,15 +2,17 @@ import neuropipeline as npl
 
 from neuropipeline.fnirs import fNIRS
 import neuropipeline.visualizer as nplv
-import numpy as np
-
 
 if __name__ == "__main__":
+
+    fnirs = fNIRS("C:\\nirs\\Datasets\\ms_data\\Subject03\\sub03_trial03.snirf")
+    fnirs.preprocess(
+        optical_density=True,
+        hemoglobin_concentration=True,
+        temporal_filtering=True,
+        normalization=False,
+        detrending=True
+    )
     
-    fnirs = npl.fnirs.fNIRS("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003.snirf")
-    fnirs.preprocess(optical_density=True, 
-                     hemoglobin_concentration=True, 
-                     temporal_filtering=True,
-                     normalization=False, 
-                     detrending=True)
     nplv.open(fnirs)
+    

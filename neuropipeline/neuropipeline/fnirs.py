@@ -432,7 +432,7 @@ class fNIRS():
             
         if temporal_filtering:
             lowcut = 0.01
-            highcut = 0.1
+            highcut = 0.5
             order = 15
             self.bandpass_channels(lowcut, highcut, order)
         
