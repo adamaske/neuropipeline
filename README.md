@@ -57,4 +57,4 @@ These examples show single trials from a subject during a heel-stimulation exper
 ## Installation
 
 ```bash
-pip install neuropipeline
+python -m pip install neuropipeline
