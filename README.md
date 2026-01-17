@@ -18,6 +18,8 @@ fnirs.preprocess(
 )
 
 nplv.open(fnirs)
+
+snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to overwrite any data you want to keep. 
 ```
 
 ## Example
