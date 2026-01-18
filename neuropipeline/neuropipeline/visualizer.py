@@ -17,10 +17,18 @@ from typing import Union
 
 from .fnirs import fNIRS, compute_psd, compute_fft
 
+# Marker color palette for distinguishing different marker types
+MARKER_COLORS = [
+    '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4',
+    '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000'
+]
+
 # Module-level configuration
 _config = {
     'spectrogram_freq_min': 0.0,
     'spectrogram_freq_max': None,
+    'marker_dictionary': {},
 }
 
 
@@ -61,6 +69,9 @@ class SNIRFVisualizer:
         self.spectrogram_freq_min = _config['spectrogram_freq_min']
         self.spectrogram_freq_max = _config['spectrogram_freq_max']
 
+        # Marker visibility and color mapping
+        self._setup_markers()
+
         self._setup_gui()
 
     def _split_channels(self):
@@ -75,6 +86,30 @@ class SNIRFVisualizer:
 
         # Number of paired channels (source-detector pairs)
         self.num_channels = len(hbo_names)
+
+    def _setup_markers(self):
+        """Setup marker types, colors, visibility state, and labels."""
+        self.marker_types = []
+        self.marker_colors = {}
+        self.marker_visibility = {}
+        self.marker_labels = {}
+        self.marker_checkboxes = {}
+        self.marker_vars = {}
+
+        # Get marker dictionary from config
+        marker_dict = _config.get('marker_dictionary', {})
+
+        if self.fnirs.feature_descriptions is not None and len(self.fnirs.feature_descriptions) > 0:
+            # Get unique marker types
+            self.marker_types = sorted(set(self.fnirs.feature_descriptions))
+
+            # Assign colors, labels, and initialize visibility
+            for i, marker_type in enumerate(self.marker_types):
+                color_idx = i % len(MARKER_COLORS)
+                self.marker_colors[marker_type] = MARKER_COLORS[color_idx]
+                self.marker_visibility[marker_type] = True
+                # Use custom label if available, otherwise default to "Marker {index}"
+                self.marker_labels[marker_type] = marker_dict.get(marker_type, f"Marker {marker_type}")
 
     def _setup_gui(self):
         """Setup the main GUI window."""
@@ -257,6 +292,36 @@ class SNIRFVisualizer:
         self.spectrogram_dropdown.pack(side=tk.LEFT, padx=(0, 20))
         self.spectrogram_dropdown.bind("<<ComboboxSelected>>", self._on_spectrogram_dropdown_change)
 
+        # Marker toggle frame (only if markers exist)
+        if len(self.marker_types) > 0:
+            marker_frame = ttk.Frame(parent)
+            marker_frame.pack(fill=tk.X, pady=(0, 5))
+
+            marker_label = ttk.Label(marker_frame, text="Markers:", font=('Segoe UI', 11))
+            marker_label.pack(side=tk.LEFT, padx=(20, 10))
+
+            for marker_type in self.marker_types:
+                color = self.marker_colors[marker_type]
+                label = self.marker_labels[marker_type]
+                var = tk.BooleanVar(value=True)
+                self.marker_vars[marker_type] = var
+
+                cb = tk.Checkbutton(
+                    marker_frame,
+                    text=label,
+                    variable=var,
+                    command=lambda mt=marker_type: self._on_marker_toggle(mt),
+                    bg='#2b2b2b',
+                    fg=color,
+                    selectcolor='#404040',
+                    activebackground='#2b2b2b',
+                    activeforeground=color,
+                    font=('Segoe UI', 10, 'bold'),
+                    cursor='hand2'
+                )
+                cb.pack(side=tk.LEFT, padx=5)
+                self.marker_checkboxes[marker_type] = cb
+
     def _create_plot_area(self, parent):
         """Create the matplotlib plot area with scrollable canvas."""
         # Create a canvas with scrollbar for the plots
@@ -363,6 +428,11 @@ class SNIRFVisualizer:
         if old_both != new_both:
             self._setup_axes()
 
+        self._update_plots()
+
+    def _on_marker_toggle(self, marker_type):
+        """Handle marker visibility toggle."""
+        self.marker_visibility[marker_type] = self.marker_vars[marker_type].get()
         self._update_plots()
 
     def _on_spectrum_dropdown_change(self, event=None):
@@ -474,15 +544,49 @@ class SNIRFVisualizer:
         self.ax_timeseries.set_title('Time Series')
         self.ax_timeseries.grid(True, alpha=0.3, color='#555555')
 
-        # Add legend if at least one signal is shown
-        if self.show_hbo or self.show_hbr:
-            self.ax_timeseries.legend(loc='upper right', facecolor='#2b2b2b', edgecolor='#555555', labelcolor='white')
-
         # Add feature/event markers if available
+        marker_handles = []
+        marker_legend_labels = []
         if self.fnirs.feature_onsets is not None and len(self.fnirs.feature_onsets) > 0:
-            for onset in self.fnirs.feature_onsets:
+            # Track which marker types have been added to legend
+            added_to_legend = set()
+
+            for i, onset in enumerate(self.fnirs.feature_onsets):
                 if 0 <= onset <= time[-1]:
-                    self.ax_timeseries.axvline(x=onset, color='#ffcc00', linestyle='--', alpha=0.7, linewidth=1)
+                    marker_type = self.fnirs.feature_descriptions[i]
+
+                    # Skip if this marker type is hidden
+                    if not self.marker_visibility.get(marker_type, True):
+                        continue
+
+                    color = self.marker_colors.get(marker_type, '#ffcc00')
+                    line = self.ax_timeseries.axvline(
+                        x=onset, color=color, linestyle='--', alpha=0.7, linewidth=1
+                    )
+
+                    # Add to legend only once per marker type
+                    if marker_type not in added_to_legend:
+                        marker_handles.append(line)
+                        # Use custom label if available
+                        label = self.marker_labels.get(marker_type, f"Marker {marker_type}")
+                        marker_legend_labels.append(label)
+                        added_to_legend.add(marker_type)
+
+        # Build combined legend (signals + markers)
+        handles, labels = [], []
+        if self.show_hbo or self.show_hbr:
+            ax_handles, ax_labels = self.ax_timeseries.get_legend_handles_labels()
+            handles.extend(ax_handles)
+            labels.extend(ax_labels)
+
+        handles.extend(marker_handles)
+        labels.extend(marker_legend_labels)
+
+        if handles:
+            self.ax_timeseries.legend(
+                handles, labels, loc='upper right',
+                facecolor='#2b2b2b', edgecolor='#555555', labelcolor='white'
+            )
 
         self.ax_timeseries.set_xlim(0, time[-1])
 
@@ -643,6 +747,24 @@ def set_spectrogram_limits(freq_min: float = 0.0, freq_max: float = None):
     """
     _config['spectrogram_freq_min'] = freq_min
     _config['spectrogram_freq_max'] = freq_max
+
+
+def set_marker_dictionary(marker_dict: dict):
+    """
+    Configure custom labels for marker types.
+
+    Call this before open() to set human-readable names for marker indices.
+    Marker types not in the dictionary will display as "Marker {index}".
+
+    Args:
+        marker_dict: Dictionary mapping marker index (int) to label (str).
+
+    Example:
+        >>> import neuropipeline.visualizer as nplv
+        >>> nplv.set_marker_dictionary({1: "Rest", 3: "Pronation", 4: "Supination"})
+        >>> nplv.open(fnirs)
+    """
+    _config['marker_dictionary'] = marker_dict
 
 
 def open(data: Union[str, fNIRS]):
