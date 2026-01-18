@@ -27,8 +27,8 @@ These plots display data from a single subject during a robotic heel-stimulation
 
 <table>
   <tr>
-    <td><img src="visualizer_example.jpg" alt="Supination case"/></td>
-    <td><img src="visualizer_example_pronation.jpg" alt="Pronation case"/></td>
+    <td><img src="visualization_example.jpg" alt="Supination case"/></td>
+    <td><img src="visualization_example.jpg" alt="Pronation case"/></td>
   </tr>
   <tr>
     <td align="center"><em>Supination</em></td>
