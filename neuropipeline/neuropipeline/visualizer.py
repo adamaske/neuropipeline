@@ -225,93 +225,37 @@ class SNIRFVisualizer:
         )
         self.hbr_checkbox.pack(side=tk.LEFT, padx=10)
 
-        # Spectrum mode toggle
-        spectrum_frame = ttk.Frame(parent)
-        spectrum_frame.pack(fill=tk.X, pady=(0, 5))
+        # Spectrum mode dropdown
+        spectrum_label = ttk.Label(checkbox_frame, text="Spectrum:", font=('Segoe UI', 11))
+        spectrum_label.pack(side=tk.LEFT, padx=(20, 5))
 
-        # Left arrow for spectrum mode
-        self.spectrum_prev_btn = tk.Button(
-            spectrum_frame,
-            text="◀",
-            font=('Segoe UI', 12),
-            command=self._toggle_spectrum_mode,
-            bg='#404040',
-            fg='white',
-            activebackground='#505050',
-            activeforeground='white',
-            relief=tk.FLAT,
-            width=2,
-            cursor='hand2'
+        self.spectrum_mode_var = tk.StringVar(value=self.spectrum_mode)
+        self.spectrum_dropdown = ttk.Combobox(
+            checkbox_frame,
+            textvariable=self.spectrum_mode_var,
+            values=["FFT", "PSD"],
+            state="readonly",
+            width=8,
+            font=('Segoe UI', 10)
         )
-        self.spectrum_prev_btn.pack(side=tk.LEFT, padx=(10, 5))
+        self.spectrum_dropdown.pack(side=tk.LEFT, padx=(0, 10))
+        self.spectrum_dropdown.bind("<<ComboboxSelected>>", self._on_spectrum_dropdown_change)
 
-        # Spectrum mode label
-        self.spectrum_mode_label = ttk.Label(
-            spectrum_frame,
-            text=f"Spectrum: {self.spectrum_mode}",
-            anchor='center'
+        # Spectrogram method dropdown
+        spectrogram_label = ttk.Label(checkbox_frame, text="Spectrogram:", font=('Segoe UI', 11))
+        spectrogram_label.pack(side=tk.LEFT, padx=(10, 5))
+
+        self.spectrogram_method_var = tk.StringVar(value=self.spectrogram_method)
+        self.spectrogram_dropdown = ttk.Combobox(
+            checkbox_frame,
+            textvariable=self.spectrogram_method_var,
+            values=["Wavelet", "STFT"],
+            state="readonly",
+            width=8,
+            font=('Segoe UI', 10)
         )
-        self.spectrum_mode_label.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        # Right arrow for spectrum mode
-        self.spectrum_next_btn = tk.Button(
-            spectrum_frame,
-            text="▶",
-            font=('Segoe UI', 12),
-            command=self._toggle_spectrum_mode,
-            bg='#404040',
-            fg='white',
-            activebackground='#505050',
-            activeforeground='white',
-            relief=tk.FLAT,
-            width=2,
-            cursor='hand2'
-        )
-        self.spectrum_next_btn.pack(side=tk.RIGHT, padx=(5, 10))
-
-        # Spectrogram method toggle
-        spectrogram_frame = ttk.Frame(parent)
-        spectrogram_frame.pack(fill=tk.X, pady=(0, 5))
-
-        # Left arrow for spectrogram method
-        self.spectrogram_prev_btn = tk.Button(
-            spectrogram_frame,
-            text="◀",
-            font=('Segoe UI', 12),
-            command=self._toggle_spectrogram_method,
-            bg='#404040',
-            fg='white',
-            activebackground='#505050',
-            activeforeground='white',
-            relief=tk.FLAT,
-            width=2,
-            cursor='hand2'
-        )
-        self.spectrogram_prev_btn.pack(side=tk.LEFT, padx=(10, 5))
-
-        # Spectrogram method label
-        self.spectrogram_method_label = ttk.Label(
-            spectrogram_frame,
-            text=f"Spectrogram: {self.spectrogram_method}",
-            anchor='center'
-        )
-        self.spectrogram_method_label.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        # Right arrow for spectrogram method
-        self.spectrogram_next_btn = tk.Button(
-            spectrogram_frame,
-            text="▶",
-            font=('Segoe UI', 12),
-            command=self._toggle_spectrogram_method,
-            bg='#404040',
-            fg='white',
-            activebackground='#505050',
-            activeforeground='white',
-            relief=tk.FLAT,
-            width=2,
-            cursor='hand2'
-        )
-        self.spectrogram_next_btn.pack(side=tk.RIGHT, padx=(5, 10))
+        self.spectrogram_dropdown.pack(side=tk.LEFT, padx=(0, 20))
+        self.spectrogram_dropdown.bind("<<ComboboxSelected>>", self._on_spectrogram_dropdown_change)
 
     def _create_plot_area(self, parent):
         """Create the matplotlib plot area with scrollable canvas."""
@@ -421,16 +365,26 @@ class SNIRFVisualizer:
 
         self._update_plots()
 
+    def _on_spectrum_dropdown_change(self, event=None):
+        """Handle spectrum mode dropdown change."""
+        self.spectrum_mode = self.spectrum_mode_var.get()
+        self._update_spectrum_only()
+
+    def _on_spectrogram_dropdown_change(self, event=None):
+        """Handle spectrogram method dropdown change."""
+        self.spectrogram_method = self.spectrogram_method_var.get()
+        self._update_spectrogram_only()
+
     def _toggle_spectrum_mode(self):
-        """Toggle between PSD and FFT spectrum display."""
+        """Toggle between PSD and FFT spectrum display (keyboard shortcut)."""
         self.spectrum_mode = "FFT" if self.spectrum_mode == "PSD" else "PSD"
-        self.spectrum_mode_label.config(text=f"Spectrum: {self.spectrum_mode}")
+        self.spectrum_mode_var.set(self.spectrum_mode)
         self._update_spectrum_only()
 
     def _toggle_spectrogram_method(self):
         """Toggle between STFT and Wavelet spectrogram methods."""
         self.spectrogram_method = "Wavelet" if self.spectrogram_method == "STFT" else "STFT"
-        self.spectrogram_method_label.config(text=f"Spectrogram: {self.spectrogram_method}")
+        self.spectrogram_method_var.set(self.spectrogram_method)
         self._update_spectrogram_only()
 
     def _update_spectrogram_only(self):
