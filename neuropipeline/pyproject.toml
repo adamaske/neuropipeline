@@ -1,3 +1,39 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuropipeline"
+version = "0.1.8"
+description = "A tool for quick and easy preprocessing and visualization of fNIRS data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "Adam Emile Aske", email = "adamaske@live.no" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3.8",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "mne",
+    "mne-nirs",
+    "matplotlib",
+    "snirf",
+    "nilearn",
+    "pylsl",
+    "scipy",
+    "h5py",
+    "pywavelets",
+    "pyedflib",
+]
+
+[project.urls]
+Homepage = "https://github.com/adamaske/neuropipeline"
+"Bug Tracker" = "https://github.com/adamaske/neuropipeline/issues"
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "flake8"]

@@ -1,6 +1,6 @@
 # neuropipeline
 
-`neuropipeline` is a Python package designed for comprehensive analysis of neurophysiological data, specifically Electroencephalography (EEG) and functional Near-Infrared Spectroscopy (fNIRS). It provides tools for preprocessing, analysis, and visualization of both EEG and fNIRS data, streamlining your neuroimaging workflow.
+`neuropipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
 
 ## Usage
 
@@ -9,24 +9,26 @@ from neuropipeline.fnirs import fNIRS
 import neuropipeline.visualizer as nplv
 
 fnirs = fNIRS("path/to/your_file.snirf")
-fnirs.preprocess(
-    optical_density=True,
-    hemoglobin_concentration=True,
-    temporal_filtering=True,
-    normalization=False,
-    detrending=True
-)
+fnirs.preprocess(optical_density=True,
+                 hemoglobin_concentration=True,
+                 motion_correction=True,
+                 temporal_filtering=True,
+                 detrending=True,
+                 normalization=False
+                 )
 
 nplv.open(fnirs)
-```
 
-## Example
-These examples show single trials from a subject in my master thesis experiments. The time series, spectrogram and frequency (PSD, FFT) are plotted for each case. The red dashed lines represent markers in the data, specifically when each block starts (rest, task) as well as metadata markers describing the robot's movement and actions. The stimuli was delivered as 6 indentations and subsequent shears of the heel edge by a robot actuator. In the supination case (left), we see a clear correlation with increased HbO in the first two stimuli periods. Looking at the spectrogram (y: 0.00-0.10 Hz), the neurogenic band centered at 0.025 Hz shows activity throughout, with notable spikes coinciding with the HbO increases at stimuli onset. This is a strong indication of captured neurogenic activity in the sensory cortex resulting from mechanical stimulation of the lateral heel edge. The pronation case (right) does not exhibit the same pattern; neurogenic activity remains consistently low across the trial spectrogram, and while the time series shows some local peaks during task durations,  
+snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to overwrite any data you want to keep. 
+```
+## Analysis Example: Heel Stimulation
+
+These plots display data from a single subject during a robotic heel-stimulation experiment, showing the Time Series, Spectrogram, and Frequency (PSD/FFT) for two different scenarios. The vertical red dashed lines indicate "markers," which show exactly when a task started or when the robot moved. In this experiment, a robot stimulated the heel 6 times. In the Supination case (left), we see a clear success: oxygenated hemoglobin (HbO) increases right when the stimuli begin. This is supported by the spectrogram, where we see "spikes" of activity at 0.025 Hz (the neurogenic band) that align perfectly with the robot's movements. This confirms the pipeline has successfully captured brain activity in the sensory cortex. In contrast, the Pronation case (right) shows consistently low activity in the spectrogram, and while the time series has some small peaks, they do not show the same clear correlation with the stimulation.
 
 <table>
   <tr>
-    <td><img src="visualizer_example.jpg" alt="Supination case"/></td>
-    <td><img src="visualizer_example_pronation.jpg" alt="Pronation case"/></td>
+    <td><img src="visualization_example.jpg" alt="Supination case"/></td>
+    <td><img src="visualization_example_pronation.jpg" alt="Pronation case"/></td>
   </tr>
   <tr>
     <td align="center"><em>Supination</em></td>
@@ -34,27 +36,33 @@ These examples show single trials from a subject in my master thesis experiments
   </tr>
 </table>
 
-## Features
-
-* **Unified Interface:** A consistent API for both EEG and fNIRS data processing.
-* **Preprocessing:**
-    * Artifact removal (e.g., ICA, filtering).
-    * Data cleaning and interpolation.
-    * Channel/probe management.
-* **Analysis:**
-    * Frequency domain analysis (e.g., power spectral density).
-    * Time domain analysis (e.g., event-related potentials/responses).
-    * Statistical analysis.
-    * fNIRS specific analysis (HbO, HbR, and HbT calculations)
-* **Visualization:**
-    * Interactive plots for EEG and fNIRS data.
-    * Topographic maps.
-    * Time-series plots.
-    * fNIRS channel location visualization.
-* **Extensible Design:** Easily add custom processing and analysis modules.
-* **Well-Documented:** Comprehensive documentation with examples and tutorials.
-
 ## Installation
 
 ```bash
-pip install neuropipeline
+python -m pip install neuropipeline
+```
+
+## Advanced Usage
+
+```python
+fnirs = fNIRS("path/to/your_file.snirf")
+
+fnirs.preprocess(optical_density=True,
+                 hemoglobin_concentration=True,
+                 motion_correction=True,
+                 temporal_filtering=True,
+                 detrending=True,
+                 normalization=False
+                 )
+nplv.set_spectrogram_limits(0.0, 0.12) # Hz
+
+nplv.set_marker_dictionary({
+    0: "Rest",
+    1: "Stimuli A",
+    2: "Stimuli B",
+})
+
+nplv.open(fnirs)
+
+fnirs.write_snirf("path/to/your_new_file.snirf") # WARNING : Dont overwrite data you want to keep
+```
