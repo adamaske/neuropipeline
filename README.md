@@ -1,6 +1,6 @@
-# neuropipeline
+# NeuroPipeline
 
-`neuropipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
+`NeuroPipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
 
 ## Usage
 
