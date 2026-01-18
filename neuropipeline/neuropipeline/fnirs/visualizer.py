@@ -2,7 +2,7 @@
 Interactive GUI visualizer for fNIRS (SNIRF) data.
 
 Usage:
-    import neuropipeline.visualizer as visualizer
+    from neuropipeline.fnirs import visualizer
     visualizer.open(snirf_path_or_object)
 """
 import numpy as np
@@ -29,6 +29,8 @@ _config = {
     'spectrogram_freq_min': 0.0,
     'spectrogram_freq_max': None,
     'marker_dictionary': {},
+    'spectrum_mode': 'FFT',
+    'spectrogram_method': 'Wavelet',
 }
 
 
@@ -52,11 +54,11 @@ class SNIRFVisualizer:
         self.current_channel = 0
         self.fs = self.fnirs.sampling_frequency
 
-        # Spectrum display mode: "PSD" or "FFT"
-        self.spectrum_mode = "FFT"
+        # Spectrum display mode: "PSD" or "FFT" (read from module config)
+        self.spectrum_mode = _config['spectrum_mode']
 
-        # Spectrogram method: "STFT" or "Wavelet"
-        self.spectrogram_method = "Wavelet"
+        # Spectrogram method: "STFT" or "Wavelet" (read from module config)
+        self.spectrogram_method = _config['spectrogram_method']
 
         # Split into HbO and HbR channels
         self._split_channels()
@@ -767,6 +769,46 @@ def set_marker_dictionary(marker_dict: dict):
     _config['marker_dictionary'] = marker_dict
 
 
+def set_spectrum_mode(mode: str = "FFT"):
+    """
+    Configure the default spectrum display mode.
+
+    Call this before open() to set whether to display FFT or PSD.
+
+    Args:
+        mode: Either "FFT" or "PSD". Default is "FFT".
+
+    Example:
+        >>> from neuropipeline.fnirs import visualizer
+        >>> visualizer.set_spectrum_mode("PSD")
+        >>> visualizer.open(fnirs)
+    """
+    if mode not in ("FFT", "PSD"):
+        raise ValueError("mode must be 'FFT' or 'PSD'")
+    _config['spectrum_mode'] = mode
+
+
+def set_spectrogram_method(method: str = "Wavelet"):
+    """
+    Configure the default spectrogram computation method.
+
+    Call this before open() to set whether to use STFT or Wavelet.
+    Note: Wavelet is more computationally expensive but provides better
+    time-frequency resolution. Use STFT for faster visualization.
+
+    Args:
+        method: Either "STFT" or "Wavelet". Default is "Wavelet".
+
+    Example:
+        >>> from neuropipeline.fnirs import visualizer
+        >>> visualizer.set_spectrogram_method("STFT")  # Faster
+        >>> visualizer.open(fnirs)
+    """
+    if method not in ("STFT", "Wavelet"):
+        raise ValueError("method must be 'STFT' or 'Wavelet'")
+    _config['spectrogram_method'] = method
+
+
 def open(data: Union[str, fNIRS]):
     """
     Open the interactive visualizer for fNIRS data.
@@ -775,16 +817,14 @@ def open(data: Union[str, fNIRS]):
         data: Either a path to a SNIRF file (str) or an fNIRS object
 
     Example:
-        >>> import neuropipeline.visualizer as nplv
-        >>> nplv.open("path/to/file.snirf")
+        >>> from neuropipeline.fnirs import visualizer
+        >>> visualizer.open("path/to/file.snirf")
 
-        >>> # With custom spectrogram limits
-        >>> nplv.set_spectrogram_limits(0.01, 0.5)
-        >>> nplv.open("path/to/file.snirf")
-
-        >>> from neuropipeline.fnirs import fNIRS
-        >>> fnirs_data = fNIRS("path/to/file.snirf")
-        >>> nplv.open(fnirs_data)
+        >>> # With custom settings
+        >>> visualizer.set_spectrogram_method("STFT")  # Faster than Wavelet
+        >>> visualizer.set_spectrum_mode("PSD")
+        >>> visualizer.set_spectrogram_limits(0.01, 0.5)
+        >>> visualizer.open("path/to/file.snirf")
     """
     viz = SNIRFVisualizer(data)
     viz.run()

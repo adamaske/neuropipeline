@@ -1,43 +1,33 @@
-from neuropipeline.fnirs import fNIRS
-import neuropipeline.visualizer as nplv
-import matplotlib.pyplot as plt
+from neuropipeline import fNIRS, fNIRSPreprocessor
 
-def run_test(snirf_filepath, preprocess):
-    
-    fnirs = fNIRS(snirf_filepath)
-    
-    if preprocess:
-        fnirs.preprocess(optical_density=True,
-                     hemoglobin_concentration=True,
-                     motion_correction=True,
-                     temporal_filtering=True,
-                     detrending=True,
-                     normalization=False
-                     )
-    
-    nplv.set_spectrogram_limits(0.0, 0.12) # Hz
-    
-    nplv.set_marker_dictionary({
-        2: "Rest",
-        3: "P",
-        4: "S",
-    })
+from neuropipeline.fnirs import visualizer as nplvf
+from neuropipeline.eeg import visualizer as nplve
 
-    nplv.open(fnirs)
-    
-if __name__ == "__main__":
-    #run_test("C:\\nirs\\data\\2026-01-12\\relaxed_infront_pc\\2026-01-12_002.snirf", True)
-    #run_test("C:\\nirs\\data\\Subject03 -Only fNIRS\\Trial 3\\2025-04-01_005.snirf", True)
-    run_test("C:\\nirs\\data\\sub03_trial05.snirf", True)
-    exit()
-    # Supination case
-    run_test("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003.snirf",
-             True)
+fnirs = fNIRS("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003.snirf")
 
-        # Pronation case
-    run_test("C:/dev/neuro-glial-analysis/data/Subject01/Trial 4 - Pronation/2025-03-24_004.snirf",
-             True)
+# More advanced preprocessing configuration 
+pp = fNIRSPreprocessor(fnirs) # Create a preprocessor object
+pp.set_optical_density(True)
+pp.set_hemoglobin_concentration(True)
+pp.set_motion_correction(True)
+pp.set_temporal_filtering(True, lowcut=0.01, highcut=0.2, order=15)
+pp.set_detrending(True)
+pp.set_normalization(False)
 
-    # No preprocessing case
-    run_test("C:/dev/neuro-glial-analysis/data/Subject01/Trial 3 - Supination/2025-03-24_003.snirf",
-             False)
+pp.print() # Inspect the settings
+
+fnirs.preprocess(pp) # Apply preprocessing to the fNIRS object
+
+nplvf.set_spectrogram_limits(0.0, 0.2)
+
+nplvf.set_marker_dictionary({2:"Rest", 
+                             3:"Stimuli A", 
+                             4:"Stimuli B"})
+
+nplvf.set_spectrum_mode("FFT") # What type of spectrum to show: "FFT" or "PSD"
+
+# NOTE : The wavelet method is computationally intensive
+# Try "STFT" first, then "Wavelet" if needed
+nplvf.set_spectrogram_method("Wavelet") 
+
+nplvf.open(fnirs) 

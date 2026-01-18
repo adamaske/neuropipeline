@@ -4,123 +4,15 @@ from enum import Enum
 from mne.io import read_raw_snirf
 from mne_nirs.io import write_raw_snirf
 from snirf import validateSnirf
-from mne.preprocessing.nirs import optical_density, beer_lambert_law,  temporal_derivative_distribution_repair
+from mne.preprocessing.nirs import beer_lambert_law
 from mne import Annotations
-from scipy.signal import butter, sosfreqz, sosfiltfilt, iirnotch, filtfilt, welch, detrend
-from scipy.stats import pearsonr
+from scipy.signal import detrend
 
-
-
-def TDDR(signal, sample_rate):
-    # This function is the reference implementation for the TDDR algorithm for
-    #   motion correction of fNIRS data, as described in:
-    #
-    #   Fishburn F.A., Ludlum R.S., Vaidya C.J., & Medvedev A.V. (2019).
-    #   Temporal Derivative Distribution Repair (TDDR): A motion correction
-    #   method for fNIRS. NeuroImage, 184, 171-179.
-    #   https://doi.org/10.1016/j.neuroimage.2018.09.025
-    #
-    # Usage:
-    #   signals_corrected = TDDR( signals , sample_rate );
-    #
-    # Inputs:
-    #   signals: A [sample x channel] matrix of uncorrected optical density data
-    #   sample_rate: A scalar reflecting the rate of acquisition in Hz
-    #
-    # Outputs:
-    #   signals_corrected: A [sample x channel] matrix of corrected optical density data
-    signal = np.array(signal)
-    if len(signal.shape) != 1:
-        for ch in range(signal.shape[1]):
-            signal[:, ch] = TDDR(signal[:, ch], sample_rate)
-        return signal
-
-    # Preprocess: Separate high and low frequencies
-    filter_cutoff = .5
-    filter_order = 3
-    Fc = filter_cutoff * 2/sample_rate
-    signal_mean = np.mean(signal)
-    signal -= signal_mean
-    if Fc < 1:
-        fb, fa = butter(filter_order, Fc)
-        signal_low = filtfilt(fb, fa, signal, padlen=0)
-    else:
-        signal_low = signal
-
-    signal_high = signal - signal_low
-
-    # Initialize
-    tune = 4.685
-    D = np.sqrt(np.finfo(signal.dtype).eps)
-    mu = np.inf
-    iter = 0
-
-    # Step 1. Compute temporal derivative of the signal
-    deriv = np.diff(signal_low)
-
-    # Step 2. Initialize observation weights
-    w = np.ones(deriv.shape)
-
-    # Step 3. Iterative estimation of robust weights
-    while iter < 50:
-
-        iter = iter + 1
-        mu0 = mu
-
-        # Step 3a. Estimate weighted mean
-        mu = np.sum(w * deriv) / np.sum(w)
-
-        # Step 3b. Calculate absolute residuals of estimate
-        dev = np.abs(deriv - mu)
-
-        # Step 3c. Robust estimate of standard deviation of the residuals
-        sigma = 1.4826 * np.median(dev)
-
-        # Step 3d. Scale deviations by standard deviation and tuning parameter
-        r = dev / (sigma * tune)
-
-        # Step 3e. Calculate new weights according to Tukey's biweight function
-        w = ((1 - r**2) * (r < 1)) ** 2
-
-        # Step 3f. Terminate if new estimate is within machine-precision of old estimate
-        if abs(mu - mu0) < D * max(abs(mu), abs(mu0)):
-            break
-
-    # Step 4. Apply robust weights to centered derivative
-    new_deriv = w * (deriv - mu)
-
-    # Step 5. Integrate corrected derivative
-    signal_low_corrected = np.cumsum(np.insert(new_deriv, 0, 0.0))
-
-    # Postprocess: Center the corrected signal
-    signal_low_corrected = signal_low_corrected - np.mean(signal_low_corrected)
-
-    # Postprocess: Merge back with uncorrected high frequency component
-    signal_corrected = signal_low_corrected + signal_high + signal_mean
-
-    return signal_corrected
-
-def butter_bandpass(lowcut, highcut, fs, freqs=512, order=3):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    sos = butter(order, [low, high], btype='band', output='sos')
-    w, h = sosfreqz(sos, worN=None, whole=True, fs=fs)
-    return sos, w, h
-
-def butter_bandpass_filter(time_series, lowcut, highcut, fs, order):
-    sos, w, h = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = sosfiltfilt(sos, time_series)
-    return np.array(y)
-
-def notch_filter(data, sfreq, freqs=[50, 60]):
-    """Apply notch filters at specified frequencies."""
-    for freq in freqs:
-        b, a = iirnotch(freq, 30, sfreq)
-        data = filtfilt(b, a, data, axis=-1)
-    return data
-
-from scipy.signal import freqz, sosfreqz
+from .preprocessor import (
+    TDDR,
+    butter_bandpass_filter,
+    fNIRSPreprocessor,
+)
 
 def compute_fft(time_series, fs, freq_limit:float|None):
     # Compute FFT
@@ -158,6 +50,7 @@ class fnirs_data_type(Enum):
 WL = fnirs_data_type.Wavelength
 OD = fnirs_data_type.OpticalDensity
 CC = fnirs_data_type.HemoglobinConcentration
+
 
 class fNIRS():
     def __init__(self, filepath=None): 
@@ -373,6 +266,42 @@ class fNIRS():
         print(f"Removed {len(self.feature_descriptions) - len(indices_to_keep)} features. Remaining: {len(self.feature_descriptions)}.")
         self.update_snirf_object()
         
+    def trim(self, start_seconds: float = 0, end_seconds: float = 0) -> None:
+        """
+        Trims the recording by cutting X seconds from the start and Y seconds from the end.
+
+        Args:
+            start_seconds: Number of seconds to cut from the beginning of the recording.
+            end_seconds: Number of seconds to cut from the end of the recording.
+        """
+        total_samples = self.channel_data.shape[1]
+        total_duration = total_samples / self.sampling_frequency
+
+        if start_seconds + end_seconds >= total_duration:
+            raise ValueError(f"Cannot trim {start_seconds}s from start and {end_seconds}s from end. "
+                             f"Total duration is only {total_duration:.2f}s.")
+
+        tmin = start_seconds
+        tmax = total_duration - end_seconds
+
+        print(f"Trimming: removing {start_seconds}s from start, {end_seconds}s from end")
+        print(f"  Before: {total_samples} samples ({total_duration:.2f}s)")
+
+        # Use MNE's crop to properly trim the Raw object
+        self.snirf.crop(tmin=tmin, tmax=tmax)
+
+        # Update our local data to match
+        self.channel_data = np.array(self.snirf.get_data())
+
+        new_duration = self.channel_data.shape[1] / self.sampling_frequency
+        print(f"  After: {self.channel_data.shape[1]} samples ({new_duration:.2f}s)")
+
+        # Update feature arrays from the cropped annotations
+        annotations = self.snirf._annotations
+        self.feature_onsets = np.array(annotations.onset, dtype=float)
+        self.feature_descriptions = np.array(annotations.description, dtype=int)
+        self.feature_durations = np.array(annotations.duration, dtype=float)
+
     def trim_from_features(self, cut_from_first_feature:float=5, cut_from_last_feature:float=10) -> None:
         
         first_seconds = self.feature_onsets[0]
@@ -417,77 +346,79 @@ class fNIRS():
         for i, channel in enumerate(self.channel_data):  # Iterate over each channel
             self.channel_data[i] = butter_bandpass_filter(channel, low_freq, high_freq, self.sampling_frequency, order)
         
-# Plan to replace this
-# class Preprocessor : def set_bandpass_settings(self, l_freq, h_freq, n):
-# preprocessor __init__(, optical_density=True, hemoglobin_concentration=True, motion_correction=True, temporal_filtering=True, detrending=True, normalization=True )
-# and so on        
-# class Preprocessor:
-#     def __init__(self, optical_density=True, hemoglobin_concentration=True, 
-#                  motion_correction=True, 
-#                  temporal_filtering=True, detrending=True, normalization=True)  :
-        
-        
-#         self.optical_density = optical_density
-#         self.hemoglobin_concentration = hemoglobin_concentration
-#         self.motion_correction = motion_correction
-#         self.temporal_filtering = temporal_filtering
-#         self.detrending = detrending
-#         self.normalization = normalization
-        
-#     def get_settings(self):
-#         return {
-#             "optical_density" : self.optical_density,
-#             "hemoglobin_concentration" : self.hemoglobin_concentration,
-#             "motion_correction" : self.motion_correction,
-#             "temporal_filtering" : self.temporal_filtering,
-#             "detrending" : self.detrending,
-#             "normalization" : self.normalization
-#         }
-        
-#     def preprocess(self, fnirs:fNIRS):
-#         fnirs.preprocess(
-#             optical_density=self.optical_density,
-#             hemoglobin_concentration=self.hemoglobin_concentration,
-#             motion_correction=self.motion_correction,
-#             temporal_filtering=self.temporal_filtering,
-#             detrending=self.detrending,
-#             normalization=self.normalization
-#         )
-        
-              
-    def preprocess(self, optical_density=True, hemoglobin_concentration=True, motion_correction=True, temporal_filtering=True, detrending=True, normalization=True):
-        if optical_density:
-            self.to_optical_density(use_inital_value=False)
+    def preprocess(self,
+                   preprocessor: fNIRSPreprocessor = None,
+                   optical_density: bool = True,
+                   hemoglobin_concentration: bool = True,
+                   motion_correction: bool = True,
+                   temporal_filtering: bool = True,
+                   detrending: bool = True,
+                   normalization: bool = True):
+        """
+        Apply preprocessing pipeline to fNIRS data.
 
-        if hemoglobin_concentration:
-            self.to_hemoglobin_concentration()
+        Can be called with a fNIRSPreprocessor object for full control over settings,
+        or with individual boolean flags for simple on/off control.
 
-        if motion_correction:
-            # Apply TDDR motion correction
+        Args:
+            preprocessor: Optional fNIRSPreprocessor with configured settings.
+                          If provided, other arguments are ignored.
+            optical_density: Convert to optical density.
+            hemoglobin_concentration: Convert to hemoglobin concentration.
+            motion_correction: Apply TDDR motion correction.
+            temporal_filtering: Apply bandpass filter.
+            detrending: Apply linear detrending.
+            normalization: Apply z-score normalization.
+
+        Usage:
+            # Simple usage with defaults
+            fnirs.preprocess()
+
+            # Toggle specific steps
+            fnirs.preprocess(normalization=False)
+
+            # Full control with preprocessor object
+            pp = fNIRSPreprocessor()
+            pp.set_bandpass(0.01, 0.2, order=10)
+            fnirs.preprocess(pp)
+        """
+        # Use preprocessor settings if provided, otherwise create one from kwargs
+        if preprocessor is not None:
+            pp = preprocessor
+        else:
+            pp = fNIRSPreprocessor(
+                optical_density=optical_density,
+                hemoglobin_concentration=hemoglobin_concentration,
+                motion_correction=motion_correction,
+                temporal_filtering=temporal_filtering,
+                detrending=detrending,
+                normalization=normalization
+            )
+
+        if pp.optical_density:
+            self.to_optical_density(use_inital_value=pp.od_use_initial_value)
+
+        if pp.motion_correction:
             for i, channel in enumerate(self.channel_data):
                 self.channel_data[i] = TDDR(channel, self.sampling_frequency)
             self.snirf._data = self.channel_data
-            
-        if temporal_filtering:
-            lowcut = 0.01
-            highcut = 0.1
-            order = 15
-            self.bandpass_channels(lowcut, highcut, order)
-            
-        if detrending:
-            # Apply linear detrending to remove slow drifts
+
+        if pp.hemoglobin_concentration:
+            self.to_hemoglobin_concentration()
+
+        if pp.temporal_filtering:
+            self.bandpass_channels(pp.bandpass_lowcut, pp.bandpass_highcut, pp.bandpass_order)
+
+        if pp.detrending:
             for i, channel in enumerate(self.channel_data):
-                self.channel_data[i] = detrend(channel, type='linear')
+                self.channel_data[i] = detrend(channel, type=pp.detrend_type)
             self.snirf._data = self.channel_data
-            
-        if normalization:
-            mean_vals = np.mean(self.channel_data, axis=1, keepdims=True)  # Compute mean per channel
-            std_vals = np.std(self.channel_data, axis=1, keepdims=True)  # Compute standard deviation per channel
 
+        if pp.normalization:
+            mean_vals = np.mean(self.channel_data, axis=1, keepdims=True)
+            std_vals = np.std(self.channel_data, axis=1, keepdims=True)
             std_vals[std_vals == 0] = 1
-
-            normalized_channels = (self.channel_data - mean_vals) / std_vals  # Apply Z-Normalization
-
+            normalized_channels = (self.channel_data - mean_vals) / std_vals
             self.channel_data = normalized_channels
             self.snirf._data = normalized_channels
             
