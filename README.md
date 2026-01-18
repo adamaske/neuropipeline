@@ -46,9 +46,8 @@ python -m pip install neuropipeline
 
 ```python
 fnirs = fNIRS("path/to/your_file.snirf")
-    
-if preprocess:
-    fnirs.preprocess(optical_density=True,
+
+fnirs.preprocess(optical_density=True,
                  hemoglobin_concentration=True,
                  motion_correction=True,
                  temporal_filtering=True,
