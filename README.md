@@ -9,14 +9,14 @@ from neuropipeline.fnirs import fNIRS
 import neuropipeline.visualizer as nplv
 
 fnirs = fNIRS("path/to/your_file.snirf")
-fnirs.preprocess(
-    optical_density=True,
-    hemoglobin_concentration=True,
-    temporal_filtering=True,
-    normalization=False,
-    detrending=True
-)
-
+fnirs.preprocess(optical_density=True,
+                 hemoglobin_concentration=True,
+                 motion_correction=True,
+                 temporal_filtering=True,
+                 detrending=True,
+                 normalization=False
+                 )
+                 
 nplv.open(fnirs)
 
 snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to overwrite any data you want to keep. 
