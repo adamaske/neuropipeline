@@ -1,6 +1,6 @@
 # neuropipeline
 
-`neuropipeline` is a Python package designed for comprehensive analysis of neurophysiological data, specifically Electroencephalography (EEG) and functional Near-Infrared Spectroscopy (fNIRS). It provides tools for preprocessing, analysis, and visualization of both EEG and fNIRS data, streamlining your neuroimaging workflow.
+`neuropipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
 
 ## Usage
 
@@ -39,3 +39,30 @@ These plots display data from a single subject during a robotic heel-stimulation
 
 ```bash
 python -m pip install neuropipeline
+```
+
+## Advanced Usage
+
+```python
+fnirs = fNIRS("path/to/your_file.snirf")
+    
+if preprocess:
+    fnirs.preprocess(optical_density=True,
+                 hemoglobin_concentration=True,
+                 motion_correction=True,
+                 temporal_filtering=True,
+                 detrending=True,
+                 normalization=False
+                 )
+nplv.set_spectrogram_limits(0.0, 0.12) # Hz
+
+nplv.set_marker_dictionary({
+    0: "Rest",
+    1: "Stimuli A",
+    2: "Stimuli B",
+})
+
+nplv.open(fnirs)
+
+fnirs.write_snirf("path/to/your_new_file.snirf") # WARNING : Dont overwrite data you want to keep
+```
