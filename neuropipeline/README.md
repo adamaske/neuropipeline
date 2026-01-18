@@ -47,8 +47,7 @@ python -m pip install neuropipeline
 ```python
 from neuropipeline import fNIRS, fNIRSPreprocessor
 
-from neuropipeline.fnirs import visualizer as nplvf
-from neuropipeline.eeg import visualizer as nplve
+from neuropipeline.fnirs import visualizer as nplv
 
 fnirs = fNIRS("path/to/your_file.snirf")
 
@@ -67,17 +66,17 @@ fnirs.preprocess(pp) # Pass the preprocesser only
 
 fnirs.write_snirf("path/to/your_new_file.snirf") # WARNING : Dont overwrite data you want to keep
 
-nplvf.set_spectrogram_limits(0.0, 0.2) # The spectrogram will show frequencies from  0 to 0.2 Hz 
+nplv.set_spectrogram_limits(0.0, 0.2) # The spectrogram will show frequencies from  0 to 0.2 Hz 
 
-nplvf.set_marker_dictionary({2:"Rest",      # Display as text rather than indices
+nplv.set_marker_dictionary({2:"Rest",      # Display as text rather than indices
                              3:"Stimuli A", 
                              4:"Stimuli B"})
 
-nplvf.set_spectrum_mode("FFT") # What type of spectrum to show: "FFT" or "PSD"
+nplv.set_spectrum_mode("FFT") # What type of spectrum to show: "FFT" or "PSD"
 
 # NOTE : The wavelet method is computationally intensive
 # Try "STFT" first, then "Wavelet" if needed
-nplvf.set_spectrogram_method("Wavelet") 
+nplv.set_spectrogram_method("Wavelet") 
 
-nplvf.open(fnirs)
+nplv.open(fnirs)
 ```
