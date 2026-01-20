@@ -16,6 +16,7 @@ import pywt  # Replaced scipy wavelet imports
 from typing import Union
 
 from .fnirs import fNIRS, compute_psd, compute_fft
+from .analysis import complex_morlet_transform
 
 # Marker color palette for distinguishing different marker types
 MARKER_COLORS = [
@@ -286,7 +287,7 @@ class SNIRFVisualizer:
         self.spectrogram_dropdown = ttk.Combobox(
             checkbox_frame,
             textvariable=self.spectrogram_method_var,
-            values=["Wavelet", "STFT"],
+            values=["Wavelet", "STFT", "CMT"],
             state="readonly",
             width=8,
             font=('Segoe UI', 10)
@@ -533,7 +534,27 @@ class SNIRFVisualizer:
             self._style_axis(ax)
 
         self.canvas.draw()
+    def _plot_cmt_spectrogram(self, ax, data: np.ndarray, title: str, cmap: str):
+        """Plot Complex Morlet Transform spectrogram on the given axis."""
+        # Define scales for the wavelet transform
+        # Using scales that capture typical fNIRS frequency ranges
+        scales = np.arange(1, 128)
 
+        # Compute the Complex Morlet Transform using the analysis module
+        coefficients, frequencies = complex_morlet_transform(data, scales, wavelet='cmor1.5-1.0')
+
+        # Compute magnitude
+        magnitude = np.abs(coefficients)
+
+        # Create time axis
+        t = np.arange(len(data)) / self.fs
+
+        # Plot the scalogram
+        ax.pcolormesh(t, scales, magnitude, shading='gouraud', cmap=cmap)
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Scale')
+        ax.set_title(f"{title} (CMT)")
+    
     def _plot_timeseries(self, time: np.ndarray, hbo_data: np.ndarray, hbr_data: np.ndarray):
         """Plot the timeseries with event markers for HbO and HbR."""
         if self.show_hbo:
@@ -618,6 +639,8 @@ class SNIRFVisualizer:
 
         if self.spectrogram_method == "STFT":
             self._plot_stft_spectrogram(ax, data, title, cmap, freq_min, freq_max)
+        elif self.spectrogram_method == "CMT":
+            self._plot_cmt_spectrogram(ax, data, title, cmap)
         else:  # Wavelet
             self._plot_wavelet_spectrogram(ax, data, title, cmap, freq_min, freq_max)
 
@@ -792,20 +815,21 @@ def set_spectrogram_method(method: str = "Wavelet"):
     """
     Configure the default spectrogram computation method.
 
-    Call this before open() to set whether to use STFT or Wavelet.
-    Note: Wavelet is more computationally expensive but provides better
+    Call this before open() to set whether to use STFT, Wavelet, or CMT.
+    Note: Wavelet and CMT are more computationally expensive but provide better
     time-frequency resolution. Use STFT for faster visualization.
 
     Args:
-        method: Either "STFT" or "Wavelet". Default is "Wavelet".
+        method: "STFT", "Wavelet", or "CMT" (Complex Morlet Transform). Default is "Wavelet".
 
     Example:
         >>> from neuropipeline.fnirs import visualizer
         >>> visualizer.set_spectrogram_method("STFT")  # Faster
+        >>> visualizer.set_spectrogram_method("CMT")   # Complex Morlet Transform
         >>> visualizer.open(fnirs)
     """
-    if method not in ("STFT", "Wavelet"):
-        raise ValueError("method must be 'STFT' or 'Wavelet'")
+    if method not in ("STFT", "Wavelet", "CMT"):
+        raise ValueError("method must be 'STFT', 'Wavelet', or 'CMT'")
     _config['spectrogram_method'] = method
 
 

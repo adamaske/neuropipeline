@@ -10,3 +10,4 @@ scipy
 h5py
 pywavelets
 pyedflib
+pyqt6
