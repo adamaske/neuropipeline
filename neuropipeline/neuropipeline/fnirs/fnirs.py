@@ -131,6 +131,8 @@ class fNIRS():
     def split(self):
         """
         Splits the channel data into HbO and HbR
+
+        return hbo_channels, hbo_names, hbr_channels, hbr_names
         """
         assert(len(self.channel_data) == len(self.channel_names))
         
@@ -165,6 +167,26 @@ class fNIRS():
         result = validateSnirf(filepath)
         print("valid : ", result.is_valid())
         
+    def downsample(self, factor:int):
+        """
+        Downsamples the fNIRS data by an integer factor.
+
+        Args:
+            factor: Integer downsampling factor.
+        """
+        if factor <= 1:
+            print("Downsample factor must be greater than 1.")
+            return
+        
+        # Downsample channel data
+        self.channel_data = self.channel_data[:, ::factor]
+        
+        # Update sampling frequency
+        self.sampling_frequency /= factor
+        
+        # Update the snirf object
+        self.update_snirf_object()
+        print(f"Downsampled by a factor of {factor}. New sampling frequency: {self.sampling_frequency} Hz")
 
     def to_optical_density(self, use_inital_value=False):
         """
@@ -221,8 +243,11 @@ class fNIRS():
             return 
         
         self.update_snirf_object()
+
         hb = beer_lambert_law(self.snirf)
         
+
+
         self.snirf = hb
         
         # TODO : Do we actually need to reread all this?

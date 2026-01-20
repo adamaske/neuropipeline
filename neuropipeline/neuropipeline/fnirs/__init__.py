@@ -7,6 +7,13 @@ from .fnirs import (
     compute_fft,
     compute_psd,
 )
+
+from .analysis import (
+    plot_phase_analysis,
+    plot_phase_locking_time,
+    plot_phase_locking_time_multi,
+)
+
 from .preprocessor import (
     fNIRSPreprocessor,
     TDDR,
