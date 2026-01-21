@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import h5py
 from enum import Enum
 from mne.io import read_raw_snirf
 from mne_nirs.io import write_raw_snirf
@@ -75,9 +76,30 @@ class fNIRS():
         print("channel_names : ", self.channel_names)
         print("feature_onsets : ", self.feature_onsets)
         print("feature_descriptions : ", self.feature_descriptions)
-        
+
+    def get_duration(self) -> float:
+        """
+        Returns the total duration of the recording in seconds.
+
+        Returns:
+            float: Duration in seconds.
+        """
+        n_samples = self.channel_data.shape[1]
+        return n_samples / self.sampling_frequency
+
+    def get_time(self) -> np.ndarray:
+        """
+        Returns a time vector for the recording.
+
+        Returns:
+            np.ndarray: Array of time points in seconds, starting from 0.
+        """
+        n_samples = self.channel_data.shape[1]
+        return np.arange(n_samples) / self.sampling_frequency
+
     def read_snirf(self, filepath):
         print(f"Reading SNIRF from {filepath}")
+        self._filepath = filepath
         result = validateSnirf(filepath)
         print("valid : ", result.is_valid())
         self.snirf = read_raw_snirf(filepath)
@@ -95,7 +117,71 @@ class fNIRS():
         self.feature_durations = np.array(annotations.duration, dtype=float)
 
         self.channel_dict = None
-        
+
+    def get_metadata(self, filepath: str = None) -> dict:
+        """
+        Extracts metaDataTags from a SNIRF file using h5py.
+
+        Args:
+            filepath: Path to the SNIRF file. If None, uses the filepath from
+                      the last read_snirf call (stored in self._filepath).
+
+        Returns:
+            dict: Dictionary containing all metadata tags from the SNIRF file.
+                  Keys are the tag names, values are the decoded string values.
+        """
+        if filepath is None:
+            filepath = getattr(self, '_filepath', None)
+            if filepath is None:
+                raise ValueError("No filepath provided and no file has been read yet.")
+
+        metadata = {}
+
+        with h5py.File(filepath, 'r') as f:
+            # SNIRF files have /nirs or /nirs1, /nirs2, etc. for multiple recordings
+            # Check for metaDataTags in the first nirs group
+            nirs_groups = [key for key in f.keys() if key.startswith('nirs')]
+
+            if not nirs_groups:
+                print("Warning: No 'nirs' group found in SNIRF file.")
+                return metadata
+
+            # Use the first nirs group (or 'nirs' if it exists)
+            nirs_key = 'nirs' if 'nirs' in nirs_groups else sorted(nirs_groups)[0]
+            nirs_group = f[nirs_key]
+
+            if 'metaDataTags' not in nirs_group:
+                print("Warning: No 'metaDataTags' found in SNIRF file.")
+                return metadata
+
+            meta_group = nirs_group['metaDataTags']
+
+            for tag_name in meta_group.keys():
+                tag_data = meta_group[tag_name]
+
+                # Handle different data types
+                if isinstance(tag_data, h5py.Dataset):
+                    value = tag_data[()]
+
+                    # Decode bytes to string if needed
+                    if isinstance(value, bytes):
+                        value = value.decode('utf-8')
+                    elif isinstance(value, np.ndarray):
+                        # Handle array of bytes (common in SNIRF)
+                        if value.dtype.kind == 'S' or value.dtype.kind == 'O':
+                            if value.ndim == 0:
+                                value = value.item()
+                                if isinstance(value, bytes):
+                                    value = value.decode('utf-8')
+                            else:
+                                value = [v.decode('utf-8') if isinstance(v, bytes) else v for v in value.flat]
+                                if len(value) == 1:
+                                    value = value[0]
+
+                    metadata[tag_name] = value
+
+        return metadata
+
     def update_snirf_object(self):
         
         # Overwrite channel data
@@ -162,11 +248,86 @@ class fNIRS():
         return hbo_channels, hbo_names, hbr_channels, hbr_names
     
     def write_snirf(self, filepath):
-        write_raw_snirf(self.snirf, filepath)
-        print(f"Wrote SNIRF to {filepath}")
+        # Ensure the snirf object is up to date with our local data
+        self.update_snirf_object()
+
+        try:
+            write_raw_snirf(self.snirf, filepath)
+            print(f"Wrote SNIRF to {filepath}")
+            result = validateSnirf(filepath)
+            print("valid : ", result.is_valid())
+        except (KeyError, ValueError) as e:
+            # mne_nirs may fail with hemoglobin concentration data
+            # Fall back to writing with h5py directly
+            print(f"mne_nirs write failed ({e}), using h5py fallback...")
+            self._write_snirf_h5py(filepath)
+
+    def _write_snirf_h5py(self, filepath):
+        """
+        Write SNIRF file using h5py directly.
+        Fallback when mne_nirs fails (e.g., with hemoglobin concentration data).
+        """
+        import os
+
+        # Read the original file to preserve structure
+        if not hasattr(self, '_filepath') or self._filepath is None:
+            raise ValueError("No original file to base structure on. Cannot use h5py fallback.")
+
+        # Copy original and modify
+        import shutil
+        shutil.copy(self._filepath, filepath)
+
+        with h5py.File(filepath, 'r+') as f:
+            # Find the nirs group
+            nirs_groups = [key for key in f.keys() if key.startswith('nirs')]
+            nirs_key = 'nirs' if 'nirs' in nirs_groups else sorted(nirs_groups)[0]
+            nirs_group = f[nirs_key]
+
+            # Update the data block
+            if 'data1' in nirs_group:
+                data_group = nirs_group['data1']
+
+                # Update dataTimeSeries
+                if 'dataTimeSeries' in data_group:
+                    del data_group['dataTimeSeries']
+                data_group.create_dataset('dataTimeSeries', data=self.channel_data.T)
+
+                # Update time vector
+                if 'time' in data_group:
+                    del data_group['time']
+                time_vector = np.arange(self.channel_data.shape[1]) / self.sampling_frequency
+                data_group.create_dataset('time', data=time_vector)
+
+            # Update stim blocks (markers/features)
+            # First, remove existing stim blocks
+            stim_keys = [k for k in nirs_group.keys() if k.startswith('stim')]
+            for key in stim_keys:
+                del nirs_group[key]
+
+            # Create new stim blocks for each unique marker type
+            if len(self.feature_onsets) > 0:
+                unique_descriptions = sorted(set(self.feature_descriptions))
+
+                for i, desc in enumerate(unique_descriptions, start=1):
+                    stim_group = nirs_group.create_group(f'stim{i}')
+
+                    # Get indices for this description
+                    mask = self.feature_descriptions == desc
+                    onsets = self.feature_onsets[mask]
+                    durations = self.feature_durations[mask]
+                    amplitudes = np.ones(len(onsets))
+
+                    # Create data matrix [onset, duration, amplitude]
+                    stim_data = np.column_stack([onsets, durations, amplitudes])
+                    stim_group.create_dataset('data', data=stim_data)
+
+                    # Store name
+                    stim_group.create_dataset('name', data=str(desc).encode('utf-8'))
+
+        print(f"Wrote SNIRF to {filepath} (h5py fallback)")
         result = validateSnirf(filepath)
         print("valid : ", result.is_valid())
-        
+
     def downsample(self, factor:int):
         """
         Downsamples the fNIRS data by an integer factor.
@@ -290,7 +451,152 @@ class fNIRS():
 
         print(f"Removed {len(self.feature_descriptions) - len(indices_to_keep)} features. Remaining: {len(self.feature_descriptions)}.")
         self.update_snirf_object()
-        
+
+    def add_features(self,
+                     onsets: np.ndarray | list,
+                     descriptions: np.ndarray | list,
+                     durations: np.ndarray | list | float = 0.0,
+                     sort: bool = True) -> None:
+        """
+        Adds new feature markers to the existing data.
+
+        Args:
+            onsets: Array of onset times in seconds for the new features.
+            descriptions: Array of feature descriptions/labels for the new features.
+            durations: Array of durations in seconds, or a single value applied to all.
+                       Defaults to 0.0.
+            sort: If True, sorts all features by onset time after adding. Default True.
+
+        Raises:
+            ValueError: If onsets and descriptions have different lengths.
+
+        Usage:
+            # Add multiple features
+            fnirs.add_features(
+                onsets=[10.0, 20.0, 30.0],
+                descriptions=[1, 2, 1],
+                durations=[5.0, 5.0, 5.0]
+            )
+
+            # Add with uniform duration
+            fnirs.add_features(
+                onsets=[10.0, 20.0],
+                descriptions=[3, 3],
+                durations=2.0
+            )
+
+            # Add a single feature
+            fnirs.add_features(onsets=[15.0], descriptions=[4], durations=1.0)
+        """
+        onsets = np.array(onsets, dtype=float)
+        descriptions = np.array(descriptions)
+
+        if len(onsets) != len(descriptions):
+            raise ValueError(f"onsets length ({len(onsets)}) must match descriptions length ({len(descriptions)})")
+
+        # Handle durations
+        if np.isscalar(durations):
+            durations = np.full(len(onsets), float(durations))
+        else:
+            durations = np.array(durations, dtype=float)
+            if len(durations) != len(onsets):
+                raise ValueError(f"durations length ({len(durations)}) must match onsets length ({len(onsets)})")
+
+        # Append to existing features
+        self.feature_onsets = np.concatenate([self.feature_onsets, onsets])
+        self.feature_descriptions = np.concatenate([self.feature_descriptions, descriptions])
+        self.feature_durations = np.concatenate([self.feature_durations, durations])
+
+        # Sort by onset time if requested
+        if sort:
+            sort_indices = np.argsort(self.feature_onsets)
+            self.feature_onsets = self.feature_onsets[sort_indices]
+            self.feature_descriptions = self.feature_descriptions[sort_indices]
+            self.feature_durations = self.feature_durations[sort_indices]
+
+        print(f"Added {len(onsets)} features. Total: {len(self.feature_onsets)}.")
+        self.update_snirf_object()
+
+    def replace_features(self,
+                         onsets: np.ndarray | list = None,
+                         descriptions: np.ndarray | list = None,
+                         durations: np.ndarray | list = None) -> None:
+        """
+        Replaces the feature markers in the data.
+
+        Args:
+            onsets: Array of onset times in seconds. If None, keeps existing onsets.
+            descriptions: Array of feature descriptions/labels. If None, keeps existing.
+            durations: Array of durations in seconds. If None, keeps existing durations.
+                       If a single value is provided, it will be applied to all features.
+
+        Raises:
+            ValueError: If array lengths don't match when multiple arrays are provided.
+
+        Usage:
+            # Replace all features completely
+            fnirs.replace_features(
+                onsets=[10.0, 20.0, 30.0],
+                descriptions=[1, 2, 1],
+                durations=[5.0, 5.0, 5.0]
+            )
+
+            # Replace only onsets, keep existing descriptions and durations
+            fnirs.replace_features(onsets=[10.0, 20.0, 30.0])
+
+            # Use uniform duration for all features
+            fnirs.replace_features(
+                onsets=[10.0, 20.0, 30.0],
+                descriptions=[1, 2, 1],
+                durations=5.0
+            )
+        """
+        # Determine the reference length
+        if onsets is not None:
+            onsets = np.array(onsets, dtype=float)
+            ref_length = len(onsets)
+        elif descriptions is not None:
+            descriptions = np.array(descriptions)
+            ref_length = len(descriptions)
+        elif durations is not None and not np.isscalar(durations):
+            durations = np.array(durations, dtype=float)
+            ref_length = len(durations)
+        else:
+            ref_length = len(self.feature_onsets)
+
+        # Process onsets
+        if onsets is not None:
+            if len(onsets) != ref_length:
+                raise ValueError(f"onsets length ({len(onsets)}) doesn't match expected length ({ref_length})")
+            self.feature_onsets = onsets
+        elif ref_length != len(self.feature_onsets):
+            raise ValueError(f"Cannot keep existing onsets: length mismatch ({len(self.feature_onsets)} vs {ref_length})")
+
+        # Process descriptions
+        if descriptions is not None:
+            descriptions = np.array(descriptions)
+            if len(descriptions) != ref_length:
+                raise ValueError(f"descriptions length ({len(descriptions)}) doesn't match expected length ({ref_length})")
+            self.feature_descriptions = descriptions
+        elif ref_length != len(self.feature_descriptions):
+            raise ValueError(f"Cannot keep existing descriptions: length mismatch ({len(self.feature_descriptions)} vs {ref_length})")
+
+        # Process durations
+        if durations is not None:
+            if np.isscalar(durations):
+                # Single value: apply to all features
+                self.feature_durations = np.full(ref_length, float(durations))
+            else:
+                durations = np.array(durations, dtype=float)
+                if len(durations) != ref_length:
+                    raise ValueError(f"durations length ({len(durations)}) doesn't match expected length ({ref_length})")
+                self.feature_durations = durations
+        elif ref_length != len(self.feature_durations):
+            raise ValueError(f"Cannot keep existing durations: length mismatch ({len(self.feature_durations)} vs {ref_length})")
+
+        print(f"Replaced features: {ref_length} markers set.")
+        self.update_snirf_object()
+
     def trim(self, start_seconds: float = 0, end_seconds: float = 0) -> None:
         """
         Trims the recording by cutting X seconds from the start and Y seconds from the end.

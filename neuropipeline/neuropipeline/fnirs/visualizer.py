@@ -297,11 +297,24 @@ class SNIRFVisualizer:
 
         # Marker toggle frame (only if markers exist)
         if len(self.marker_types) > 0:
-            marker_frame = ttk.Frame(parent)
-            marker_frame.pack(fill=tk.X, pady=(0, 5))
+            marker_outer_frame = ttk.Frame(parent)
+            marker_outer_frame.pack(fill=tk.X, pady=(0, 5))
 
-            marker_label = ttk.Label(marker_frame, text="Markers:", font=('Segoe UI', 11))
+            marker_label = ttk.Label(marker_outer_frame, text="Markers:", font=('Segoe UI', 11))
             marker_label.pack(side=tk.LEFT, padx=(20, 10))
+
+            # Create a canvas with horizontal scrolling for many markers
+            marker_canvas = tk.Canvas(
+                marker_outer_frame,
+                bg='#2b2b2b',
+                highlightthickness=0,
+                height=30
+            )
+            marker_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            # Inner frame to hold checkboxes
+            marker_inner_frame = tk.Frame(marker_canvas, bg='#2b2b2b')
+            marker_canvas.create_window((0, 0), window=marker_inner_frame, anchor='nw')
 
             for marker_type in self.marker_types:
                 color = self.marker_colors[marker_type]
@@ -310,7 +323,7 @@ class SNIRFVisualizer:
                 self.marker_vars[marker_type] = var
 
                 cb = tk.Checkbutton(
-                    marker_frame,
+                    marker_inner_frame,
                     text=label,
                     variable=var,
                     command=lambda mt=marker_type: self._on_marker_toggle(mt),
@@ -324,6 +337,19 @@ class SNIRFVisualizer:
                 )
                 cb.pack(side=tk.LEFT, padx=5)
                 self.marker_checkboxes[marker_type] = cb
+
+            # Update scroll region when frame is configured
+            def update_scroll_region(event):
+                marker_canvas.configure(scrollregion=marker_canvas.bbox('all'))
+
+            marker_inner_frame.bind('<Configure>', update_scroll_region)
+
+            # Enable horizontal scrolling with mouse wheel (Shift+Scroll or horizontal scroll)
+            def on_mouse_wheel(event):
+                marker_canvas.xview_scroll(int(-1 * (event.delta / 120)), 'units')
+
+            marker_canvas.bind('<Shift-MouseWheel>', on_mouse_wheel)
+            marker_canvas.bind('<MouseWheel>', on_mouse_wheel)
 
     def _create_plot_area(self, parent):
         """Create the matplotlib plot area with scrollable canvas."""
@@ -362,10 +388,11 @@ class SNIRFVisualizer:
         # Determine layout based on what's being shown
         both_shown = self.show_hbo and self.show_hbr
 
+        # Leave space on right for legend (0.88 instead of 0.95)
         if both_shown:
             # 3 rows: timeseries, spectrograms (side by side), spectrum
             gs = self.fig.add_gridspec(3, 2, hspace=0.4, wspace=0.15,
-                                       left=0.08, right=0.95, top=0.95, bottom=0.08)
+                                       left=0.06, right=0.88, top=0.95, bottom=0.08)
             self.ax_timeseries = self.fig.add_subplot(gs[0, :])  # Full width
             self.ax_spectrogram_hbo = self.fig.add_subplot(gs[1, 0])  # Left
             self.ax_spectrogram_hbr = self.fig.add_subplot(gs[1, 1])  # Right
@@ -373,7 +400,7 @@ class SNIRFVisualizer:
             axes_list = [self.ax_timeseries, self.ax_spectrogram_hbo, self.ax_spectrogram_hbr, self.ax_spectrum]
         else:
             # 3 rows: timeseries, single spectrogram, spectrum
-            gs = self.fig.add_gridspec(3, 1, hspace=0.4, left=0.08, right=0.95, top=0.95, bottom=0.08)
+            gs = self.fig.add_gridspec(3, 1, hspace=0.4, left=0.06, right=0.88, top=0.95, bottom=0.08)
             self.ax_timeseries = self.fig.add_subplot(gs[0])
             self.ax_spectrogram_hbo = self.fig.add_subplot(gs[1])  # Use HbO slot for single spectrogram
             self.ax_spectrogram_hbr = None
@@ -436,7 +463,7 @@ class SNIRFVisualizer:
     def _on_marker_toggle(self, marker_type):
         """Handle marker visibility toggle."""
         self.marker_visibility[marker_type] = self.marker_vars[marker_type].get()
-        self._update_plots()
+        self._update_timeseries_only()
 
     def _on_spectrum_dropdown_change(self, event=None):
         """Handle spectrum mode dropdown change."""
@@ -491,6 +518,27 @@ class SNIRFVisualizer:
         self._style_axis(self.ax_spectrum)
         self.canvas.draw()
 
+    def _update_timeseries_only(self):
+        """Update only the timeseries plot (for marker toggle)."""
+        hbo_data = self.hbo_data[self.current_channel]
+        hbr_data = self.hbr_data[self.current_channel]
+        time = np.arange(len(hbo_data)) / self.fs
+
+        # Save current axis limits to preserve zoom/pan
+        xlim = self.ax_timeseries.get_xlim()
+        ylim = self.ax_timeseries.get_ylim()
+
+        self.ax_timeseries.clear()
+        self._plot_timeseries(time, hbo_data, hbr_data)
+
+        # Restore axis limits
+        self.ax_timeseries.set_xlim(xlim)
+        self.ax_timeseries.set_ylim(ylim)
+
+        # Re-apply styling
+        self._style_axis(self.ax_timeseries)
+        self.canvas.draw()
+
     def _style_axis(self, ax):
         """Apply dark theme styling to an axis."""
         ax.set_facecolor('#1e1e1e')
@@ -536,12 +584,21 @@ class SNIRFVisualizer:
         self.canvas.draw()
     def _plot_cmt_spectrogram(self, ax, data: np.ndarray, title: str, cmap: str):
         """Plot Complex Morlet Transform spectrogram on the given axis."""
-        # Define scales for the wavelet transform
-        # Using scales that capture typical fNIRS frequency ranges
-        scales = np.arange(1, 128)
+        # Determine frequency limits (same as other spectrogram methods)
+        freq_min = self.spectrogram_freq_min
+        freq_max = self.spectrogram_freq_max if self.spectrogram_freq_max is not None else min(self.fs / 2, 1.0)
 
-        # Compute the Complex Morlet Transform using the analysis module
-        coefficients, frequencies = complex_morlet_transform(data, scales, wavelet='cmor1.5-1.0')
+        # Generate target frequencies for the CMT
+        num_freqs = 64
+        frequencies = np.linspace(max(freq_min, 0.001), freq_max, num_freqs)
+
+        # Convert frequencies to scales for PyWavelets
+        wavelet_name = 'cmor1.5-1.0'
+        sampling_period = 1.0 / self.fs
+        scales = pywt.frequency2scale(wavelet_name, frequencies * sampling_period)
+
+        # Compute the CWT with proper sampling period
+        coefficients, freqs_out = pywt.cwt(data, scales, wavelet_name, sampling_period=sampling_period)
 
         # Compute magnitude
         magnitude = np.abs(coefficients)
@@ -549,10 +606,10 @@ class SNIRFVisualizer:
         # Create time axis
         t = np.arange(len(data)) / self.fs
 
-        # Plot the scalogram
-        ax.pcolormesh(t, scales, magnitude, shading='gouraud', cmap=cmap)
+        # Plot using frequencies on y-axis
+        ax.pcolormesh(t, freqs_out, magnitude, shading='gouraud', cmap=cmap)
         ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Scale')
+        ax.set_ylabel('Frequency (Hz)')
         ax.set_title(f"{title} (CMT)")
     
     def _plot_timeseries(self, time: np.ndarray, hbo_data: np.ndarray, hbr_data: np.ndarray):
@@ -606,9 +663,15 @@ class SNIRFVisualizer:
         labels.extend(marker_legend_labels)
 
         if handles:
+            # Place legend outside the plot area (to the right) to avoid obstructing data
             self.ax_timeseries.legend(
-                handles, labels, loc='upper right',
-                facecolor='#2b2b2b', edgecolor='#555555', labelcolor='white'
+                handles, labels,
+                loc='upper left',
+                bbox_to_anchor=(1.01, 1),
+                facecolor='#2b2b2b',
+                edgecolor='#555555',
+                labelcolor='white',
+                fontsize=8
             )
 
         self.ax_timeseries.set_xlim(0, time[-1])
