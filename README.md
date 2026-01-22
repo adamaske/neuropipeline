@@ -1,6 +1,6 @@
-# NeuroPipeline
+# neuropipeline
 
-`NeuroPipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
+`neuropipeline` is a tool for quick and easy to use preprocessing and visualization of Functional Near-Infrared Spectroscopy (fNIRS) data.  
 
 ## Usage
 
@@ -23,7 +23,7 @@ snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to o
 ```
 ## Analysis Example: Heel Stimulation
 
-These plots display data from a single subject during a robotic heel-stimulation experiment, showing the time series, spectrogram, and frequency for two different trials. The vertical red dashed lines indicate block onset (rest then stimuli). In this experiment, a robot mechanically stimulated the heel 6 times. In the Supination case (left) oxygenated hemoglobin (HbO) increases as the stimuli begins. This is supported by the spectrogram, where we see increased activity at 0.025 Hz (the neurogenic band) that align well with the robot's movements. This confirms the pipeline has successfully captured brain activity in the sensory cortex. In contrast, the Pronation case (right) do not show the same clear correlation with the stimuli onset.
+These plots display data from a single subject during a robotic heel-stimulation experiment, showing the Time Series, Spectrogram, and Frequency (PSD/FFT) for two different scenarios. The vertical red dashed lines indicate "markers," which show exactly when a task started or when the robot moved. In this experiment, a robot stimulated the heel 6 times. In the Supination case (left), we see a clear success: oxygenated hemoglobin (HbO) increases right when the stimuli begin. This is supported by the spectrogram, where we see "spikes" of activity at 0.025 Hz (the neurogenic band) that align perfectly with the robot's movements. This confirms the pipeline has successfully captured brain activity in the sensory cortex. In contrast, the Pronation case (right) shows consistently low activity in the spectrogram, and while the time series has some small peaks, they do not show the same clear correlation with the stimulation.
 
 <table>
   <tr>
