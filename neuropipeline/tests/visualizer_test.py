@@ -3,9 +3,11 @@ from neuropipeline.fnirs import visualizer as nplvf
 from neuropipeline.eeg import visualizer as nplve
 from neuropipeline.fnirs.analysis import plot_phase_analysis
 
-fnirs = fNIRS("C:/dev/NIRS_Cardiac_Analysis/data/RH-data/Second/2026-01-14_003_HP08_TDDR_TRIM.snirf")
+fnirs = fNIRS("C:\\dev\\NIRS_Cardiac_Analysis\\data\\neuro_001_OD_CC_TDDR_BP0p01_0p1_LD.snirf")
 fnirs.print()
 
+nplvf.open(fnirs)
+exit()
 #fnirs = fNIRS(" ")
 
 # More advanced preprocessing configuration 

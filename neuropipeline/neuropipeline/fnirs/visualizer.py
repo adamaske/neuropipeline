@@ -31,7 +31,7 @@ _config = {
     'spectrogram_freq_max': None,
     'marker_dictionary': {},
     'spectrum_mode': 'FFT',
-    'spectrogram_method': 'Wavelet',
+    'spectrogram_method': 'STFT',
 }
 
 
