@@ -5,21 +5,23 @@
 ## Usage
 
 ```python
-from neuropipeline.fnirs import fNIRS
-import neuropipeline.visualizer as nplv
+from neuropipeline import fNIRS
+import neuropipeline.fnirs.visualizer as nplv
 
-fnirs = fNIRS("path/to/your_file.snirf")
+fnirs = fNIRS("path/to/your_data.snirf")
 fnirs.preprocess(optical_density=True,
                  hemoglobin_concentration=True,
                  motion_correction=True,
                  temporal_filtering=True,
                  detrending=True,
-                 normalization=False
+                 normalization=False # Only use normalization if necessary
                  )
+
+# WARNING: Be cautious not to overwrite any data you want to keep.
+fnirs.write_snirf("path/to/your/new_processed_data.snirf") 
 
 nplv.open(fnirs)
 
-snirf.write_snirf("path/to/your_new_file.snirf") # WARNING: Be cautious not to overwrite any data you want to keep. 
 ```
 ## Analysis Example: Heel Stimulation
 
@@ -46,7 +48,6 @@ python -m pip install neuropipeline
 
 ```python
 from neuropipeline import fNIRS, fNIRSPreprocessor
-
 from neuropipeline.fnirs import visualizer as nplv
 
 fnirs = fNIRS("path/to/your_file.snirf")
