@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree /F \"C:\\\\dev\\\\neuropipeline\" -I \"node_modules|__pycache__|*.pyc|.git\")",
+      "Bash(find:*)"
+    ]
+  }
+}

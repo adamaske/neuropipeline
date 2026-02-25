@@ -14,7 +14,8 @@ from scipy.signal import spectrogram
 import pywt
 from typing import Union
 
-from .eeg import EEG
+from .eeg import EEGImporter
+from .eeg_data import EEGData
 
 # Marker color palette for distinguishing different marker types
 MARKER_COLORS = [
@@ -63,19 +64,19 @@ def compute_psd(time_series, fs, freq_limit: float | None):
 class EEGVisualizer:
     """Interactive GUI for visualizing EEG channel data."""
 
-    def __init__(self, data: Union[str, EEG]):
+    def __init__(self, data: Union[str, EEGData]):
         """
         Initialize the visualizer.
 
         Args:
-            data: Either a path to an HDF5 file or an EEG object
+            data: Either a path to an HDF5 file or an EEGData object
         """
         if isinstance(data, str):
-            self.eeg = EEG(data)
-        elif isinstance(data, EEG):
+            self.eeg = EEGImporter.load(data, source="gRecorder")
+        elif isinstance(data, EEGData):
             self.eeg = data
         else:
-            raise TypeError("data must be an HDF5 file path (str) or EEG object")
+            raise TypeError("data must be an HDF5 file path (str) or EEGData object")
 
         self.current_channel = 0
         self.fs = self.eeg.sampling_frequency
@@ -354,9 +355,9 @@ class EEGVisualizer:
         """Get the total duration of the recording in seconds."""
         return self.eeg.channel_data.shape[1] / self.fs
 
-    def _get_marker_time(self, onset_sample: int) -> float:
-        """Convert marker onset from samples to seconds."""
-        return onset_sample / self.fs
+    def _get_marker_time(self, onset_seconds: float) -> float:
+        """Return marker onset time in seconds (EEGData already stores seconds)."""
+        return onset_seconds
 
     def _on_slider_change(self, value):
         """Handle slider value change."""
@@ -671,12 +672,12 @@ def set_spectrogram_method(method: str = "STFT"):
     _config['spectrogram_method'] = method
 
 
-def open(data: Union[str, EEG]):
+def open(data: Union[str, EEGData]):
     """
     Open the interactive visualizer for EEG data.
 
     Args:
-        data: Either a path to an HDF5 file (str) or an EEG object
+        data: Either a path to an HDF5 file (str) or an EEGData object
 
     Example:
         >>> from neuropipeline.eeg import visualizer
