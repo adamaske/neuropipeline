@@ -1,7 +1,7 @@
 from .eeg_data import EEGData
 from .importers import GRecorderImporter
 from .importers.base import BaseEEGImporter
-from .exporters import EEGLABExporter, HDF5Exporter
+from .exporters import EEGLABExporter, HDF5Exporter, EEGCSVExporter
 
 _IMPORTERS: dict[str, type[BaseEEGImporter]] = {
     "gRecorder": GRecorderImporter,
@@ -60,3 +60,18 @@ class EEGExporter:
             source_filepath: Original .hdf5 file to copy structure from.
         """
         HDF5Exporter().export(data, output_path, source_filepath)
+
+    @staticmethod
+    def to_csv(data: EEGData, output_folder: str, name: str | None = None) -> None:
+        """
+        Export to CSV files.
+
+        Writes {name}_channels.csv (time + channel columns) and
+        {name}_events.csv (onset_s, description) into output_folder.
+
+        Args:
+            data: EEGData to export.
+            output_folder: Directory to write files into.
+            name: Base filename stem. Defaults to "eeg".
+        """
+        EEGCSVExporter().export(data, output_folder, name)
