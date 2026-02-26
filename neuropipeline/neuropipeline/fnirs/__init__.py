@@ -17,12 +17,6 @@ from .fnirs import (
 )
 from .fnirs_io import fNIRSImporter, fNIRSExporter
 
-from .analysis import (
-    plot_phase_analysis,
-    plot_phase_locking_time,
-    plot_phase_locking_time_multi,
-)
-
 from .preprocessor import (
     fNIRSPreprocessor,
     TDDR,
