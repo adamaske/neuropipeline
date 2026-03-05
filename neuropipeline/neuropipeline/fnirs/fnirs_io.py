@@ -37,18 +37,15 @@ class fNIRSExporter:
     """
 
     @staticmethod
-    def to_snirf(data: SNIRF, output_path: str, source_filepath: str) -> None:
+    def to_snirf(data: SNIRF, output_path: str) -> None:
         """
-        Export to SNIRF format.
-
-        Copies the source file structure and overwrites channel data and markers.
+        Export to SNIRF format, written from scratch.
 
         Args:
-            data:            SNIRF object to export.
-            output_path:     Destination .snirf file path.
-            source_filepath: Original .snirf file to copy structure from.
+            data:        SNIRF object to export.
+            output_path: Destination .snirf file path.
         """
-        SNIRFExporter().export(data, output_path, source_filepath)
+        SNIRFExporter().export(data, output_path)
 
     @staticmethod
     def to_csv(data: SNIRF, output_folder: str, name: str | None = None) -> None:

@@ -165,3 +165,6 @@ upload_development_package.bat
 
 # Local batch scripts (may contain API keys/tokens)
 *.bat
+
+# PyPI token
+pypi_token.txt

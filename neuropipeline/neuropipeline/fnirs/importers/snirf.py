@@ -55,10 +55,9 @@ def _parse_metadata(meta_group: h5py.Group) -> Metadata:
 
 def _read_float_matrix(ds: h5py.Dataset) -> np.ndarray:
     """Read a 2-D float dataset as a (rows, cols) numpy array."""
-    dims = ds.shape
-    raw = np.empty(dims[0] * dims[1], dtype=np.float64)
+    raw = np.empty(ds.shape, dtype=np.float64)
     ds.read_direct(raw)
-    return raw.reshape(dims[0], dims[1])
+    return raw
 
 
 def _parse_probe(probe_group: h5py.Group) -> Probe:

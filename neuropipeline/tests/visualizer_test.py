@@ -18,7 +18,10 @@ pp.set_normalization(False)
 
 pp.print() # Inspect the settings
 
-#fnirs.preprocess(pp) # Apply preprocessing to the fNIRS object
+fnirs.preprocess(pp) # Apply preprocessing to the fNIRS object
+
+fnirs.write_snirf("test.snirf")
+exit()
 
 nplvf.set_spectrogram_limits(0.0, 0.2)
 
