@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Builds and publishes neuropipeline to PyPI."""
-
+import shutil
 import subprocess
 import sys
-import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -50,12 +49,19 @@ def main():
     if not dist_files:
         print("ERROR: No dist files found after build.")
         sys.exit(1)
-    run([
-        sys.executable, "-m", "twine", "upload",
-        *[str(f) for f in dist_files],
-        "-u", "__token__",
-        "-p", token,
-    ])
+    run(
+        [
+            sys.executable,
+            "-m",
+            "twine",
+            "upload",
+            *[str(f) for f in dist_files],
+            "-u",
+            "__token__",
+            "-p",
+            token,
+        ]
+    )
 
     print("\nDone! Package published successfully.")
 

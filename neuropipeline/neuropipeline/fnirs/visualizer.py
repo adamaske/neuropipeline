@@ -52,6 +52,13 @@ class SNIRFVisualizer:
         else:
             raise TypeError("data must be a SNIRF file path (str) or fNIRS object")
 
+        if self.fnirs.data_type != "hemoglobin":
+            raise ValueError(
+                f"Visualizer expects hemoglobin data (HbO/HbR), "
+                f"but got '{self.fnirs.data_type}'. "
+                f"Run to_optical_density().to_hemoglobin() first."
+            )
+
         self.current_channel = 0
         self.fs = self.fnirs.sampling_frequency
 
@@ -79,16 +86,11 @@ class SNIRFVisualizer:
 
     def _split_channels(self):
         """Split channel data into paired HbO and HbR arrays."""
-        hbo_data, hbo_names, hbr_data, hbr_names = self.fnirs.split()
-
-        # Store paired channel data
-        self.hbo_data = hbo_data
-        self.hbr_data = hbr_data
-        self.hbo_names = hbo_names
-        self.hbr_names = hbr_names
+        self.hbo_data, self.hbo_names = self.fnirs.get_hbo()
+        self.hbr_data, self.hbr_names = self.fnirs.get_hbr()
 
         # Number of paired channels (source-detector pairs)
-        self.num_channels = len(hbo_names)
+        self.num_channels = len(self.hbo_names)
 
     def _setup_markers(self):
         """Setup marker types, colors, visibility state, and labels."""
@@ -102,17 +104,18 @@ class SNIRFVisualizer:
         # Get marker dictionary from config
         marker_dict = _config.get('marker_dictionary', {})
 
-        if self.fnirs.feature_descriptions is not None and len(self.fnirs.feature_descriptions) > 0:
-            # Get unique marker types
-            self.marker_types = sorted(set(self.fnirs.feature_descriptions))
+        annotations = self.fnirs.raw.annotations
+        if len(annotations) > 0:
+            # Get unique marker types from annotation descriptions (strings in MNE)
+            self.marker_types = sorted(set(annotations.description))
 
             # Assign colors, labels, and initialize visibility
             for i, marker_type in enumerate(self.marker_types):
                 color_idx = i % len(MARKER_COLORS)
                 self.marker_colors[marker_type] = MARKER_COLORS[color_idx]
                 self.marker_visibility[marker_type] = True
-                # Use custom label if available, otherwise default to "Marker {index}"
-                self.marker_labels[marker_type] = marker_dict.get(marker_type, f"Marker {marker_type}")
+                # Use custom label if available, otherwise use the description string directly
+                self.marker_labels[marker_type] = marker_dict.get(marker_type, marker_type)
 
     def _setup_gui(self):
         """Setup the main GUI window."""
@@ -424,7 +427,7 @@ class SNIRFVisualizer:
 
     def _get_duration(self) -> float:
         """Get the total duration of the recording in seconds."""
-        return self.fnirs.channel_data.shape[1] / self.fs
+        return self.fnirs.duration
 
     def _on_slider_change(self, value):
         """Handle slider value change."""
@@ -624,17 +627,18 @@ class SNIRFVisualizer:
         self.ax_timeseries.set_title('Time Series')
         self.ax_timeseries.grid(True, alpha=0.3, color='#555555')
 
-        # Add feature/event markers if available
+        # Add event markers from MNE annotations
         marker_handles = []
         marker_legend_labels = []
-        if self.fnirs.feature_onsets is not None and len(self.fnirs.feature_onsets) > 0:
-            # Track which marker types have been added to legend
+        annotations = self.fnirs.raw.annotations
+        if len(annotations) > 0:
             added_to_legend = set()
 
-            for i, onset in enumerate(self.fnirs.feature_onsets):
-                if 0 <= onset <= time[-1]:
-                    marker_type = self.fnirs.feature_descriptions[i]
+            for ann in annotations:
+                onset = ann["onset"]
+                marker_type = ann["description"]
 
+                if 0 <= onset <= time[-1]:
                     # Skip if this marker type is hidden
                     if not self.marker_visibility.get(marker_type, True):
                         continue
@@ -647,8 +651,7 @@ class SNIRFVisualizer:
                     # Add to legend only once per marker type
                     if marker_type not in added_to_legend:
                         marker_handles.append(line)
-                        # Use custom label if available
-                        label = self.marker_labels.get(marker_type, f"Marker {marker_type}")
+                        label = self.marker_labels.get(marker_type, marker_type)
                         marker_legend_labels.append(label)
                         added_to_legend.add(marker_type)
 

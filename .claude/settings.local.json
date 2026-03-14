@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(tree /F \"C:\\\\dev\\\\neuropipeline\" -I \"node_modules|__pycache__|*.pyc|.git\")",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(xargs wc:*)",
+      "WebFetch(domain:mne.tools)",
+      "WebFetch(domain:github.com)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/test_fnirs.py -v)",
+      "Bash(where python:*)",
+      "Bash(python -m pip install pytest)",
+      "Bash(python -c \"import mne_nirs.signal_enhancement; print\\(dir\\(mne_nirs.signal_enhancement\\)\\)\")",
+      "Bash(python -c \":*)"
     ]
   }
 }
