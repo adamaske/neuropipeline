@@ -18,6 +18,13 @@ from typing import Union
 from .fnirs import fNIRS, compute_psd, compute_fft
 from .analysis import complex_morlet_transform
 
+
+def compute_cofre(time_series, fs, freq_limit: float | None):
+    """Compute COFRE spectral estimate of a time series."""
+    from cofre_spectrum import cofre_estimate
+    freq_max = freq_limit if freq_limit is not None else fs / 2
+    return cofre_estimate(time_series, fs=fs, freq_max_hz=freq_max)
+
 # Marker color palette for distinguishing different marker types
 MARKER_COLORS = [
     '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
@@ -274,7 +281,7 @@ class SNIRFVisualizer:
         self.spectrum_dropdown = ttk.Combobox(
             checkbox_frame,
             textvariable=self.spectrum_mode_var,
-            values=["FFT", "PSD"],
+            values=["FFT", "PSD", "Cofre"],
             state="readonly",
             width=8,
             font=('Segoe UI', 10)
@@ -479,8 +486,9 @@ class SNIRFVisualizer:
         self._update_spectrogram_only()
 
     def _toggle_spectrum_mode(self):
-        """Toggle between PSD and FFT spectrum display (keyboard shortcut)."""
-        self.spectrum_mode = "FFT" if self.spectrum_mode == "PSD" else "PSD"
+        """Cycle through FFT → PSD → Cofre spectrum display modes (keyboard shortcut)."""
+        modes = ["FFT", "PSD", "Cofre"]
+        self.spectrum_mode = modes[(modes.index(self.spectrum_mode) + 1) % len(modes)]
         self.spectrum_mode_var.set(self.spectrum_mode)
         self._update_spectrum_only()
 
@@ -772,7 +780,7 @@ class SNIRFVisualizer:
         ax.set_title(f"{title} (Wavelet)")
 
     def _plot_spectrum(self, hbo_data: np.ndarray, hbr_data: np.ndarray):
-        """Plot the frequency spectrum (PSD or FFT based on current mode) for HbO and HbR."""
+        """Plot the frequency spectrum (PSD, FFT, or Cofre based on current mode) for HbO and HbR."""
         freq_limit = min(self.fs / 2, 1.0)  # fNIRS signals are typically < 1 Hz
 
         if self.spectrum_mode == "PSD":
@@ -784,6 +792,15 @@ class SNIRFVisualizer:
                 self.ax_spectrum.semilogy(freqs, spectrum, color='#4a90d9', linewidth=1.2, label='HbR')
             self.ax_spectrum.set_ylabel('Power Spectral Density')
             self.ax_spectrum.set_title('Frequency Spectrum (PSD)')
+        elif self.spectrum_mode == "Cofre":
+            if self.show_hbo:
+                freqs, spectrum = compute_cofre(hbo_data, self.fs, freq_limit)
+                self.ax_spectrum.semilogy(freqs, spectrum, color='#ff6b6b', linewidth=1.2, label='HbO')
+            if self.show_hbr:
+                freqs, spectrum = compute_cofre(hbr_data, self.fs, freq_limit)
+                self.ax_spectrum.semilogy(freqs, spectrum, color='#4a90d9', linewidth=1.2, label='HbR')
+            self.ax_spectrum.set_ylabel('Power Spectral Density')
+            self.ax_spectrum.set_title('Frequency Spectrum (Cofre)')
         else:  # FFT mode
             if self.show_hbo:
                 freqs, spectrum = compute_fft(hbo_data, self.fs, freq_limit)
@@ -862,18 +879,18 @@ def set_spectrum_mode(mode: str = "FFT"):
     """
     Configure the default spectrum display mode.
 
-    Call this before open() to set whether to display FFT or PSD.
+    Call this before open() to set whether to display FFT, PSD, or Cofre.
 
     Args:
-        mode: Either "FFT" or "PSD". Default is "FFT".
+        mode: Either "FFT", "PSD", or "Cofre". Default is "FFT".
 
     Example:
         >>> from neuropipeline.fnirs import visualizer
-        >>> visualizer.set_spectrum_mode("PSD")
+        >>> visualizer.set_spectrum_mode("Cofre")
         >>> visualizer.open(fnirs)
     """
-    if mode not in ("FFT", "PSD"):
-        raise ValueError("mode must be 'FFT' or 'PSD'")
+    if mode not in ("FFT", "PSD", "Cofre"):
+        raise ValueError("mode must be 'FFT', 'PSD', or 'Cofre'")
     _config['spectrum_mode'] = mode
 
 

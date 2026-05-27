@@ -9,27 +9,26 @@ description = "A tool for quick and easy preprocessing and visualization of fNIR
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-authors = [
-    { name = "Adam Emile Aske", email = "adamaske@live.no" }
-]
+authors = [{ name = "Adam Emile Aske", email = "adamaske@live.no" }]
 classifiers = [
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
 ]
 dependencies = [
-    "numpy",
-    "pandas",
-    "mne",
-    "mne-nirs",
-    "matplotlib",
-    "nilearn",
-    "pylsl",
-    "scipy",
-    "h5py",
-    "pywavelets",
-    "pyedflib",
+  "numpy",
+  "pandas",
+  "mne",
+  "mne-nirs",
+  "matplotlib",
+  "nilearn",
+  "pylsl",
+  "scipy",
+  "h5py",
+  "pywavelets",
+  "pyedflib",
+  "cofre-spectrum",
 ]
 
 [project.urls]

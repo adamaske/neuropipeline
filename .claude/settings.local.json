@@ -12,7 +12,8 @@
       "Bash(where python:*)",
       "Bash(python -m pip install pytest)",
       "Bash(python -c \"import mne_nirs.signal_enhancement; print\\(dir\\(mne_nirs.signal_enhancement\\)\\)\")",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python:*)"
     ]
   }
 }
